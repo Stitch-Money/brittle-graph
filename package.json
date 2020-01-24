@@ -1,0 +1,17 @@
+{
+  "name": "brittle-graph",
+  "version": "1.0.0",
+  "description": "A library for efficiently traversing graphs with brittle, failure prone edges",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "tsc": "tsc"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {
+    "ts-jest": "^25.0.0",
+    "ts-node-dev": "^1.0.0-pre.43",
+    "typescript": "^3.7.2"
+  }
+}
