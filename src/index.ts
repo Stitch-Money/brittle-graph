@@ -11,9 +11,9 @@ import { Decoder, object, string } from 'decoders';
 * will produce A & B because function types are contravariant in their argument
 * types
 */
-type UnionToIntersection<U> =
-    (U extends any ? (k: U) => void : never) extends
-    ((k: infer I) => void) ? I : never
+// type UnionToIntersection<U> =
+//     (U extends any ? (k: U) => void : never) extends
+//     ((k: infer I) => void) ? I : never
 
 type TransitionResult = 'transitioned';
 type PromiseOrResult<T> = Promise<T> | T;
@@ -26,10 +26,10 @@ type NodeState<Context, Node extends GraphNode<Context, any, Node>> =
 
 
 type FieldDefinition<Context, Node extends GraphNode<Context, any, Node>> =
-    ((
+    (
         nodeState: NodeState<Context, Node>,
         fieldArg: any
-    ) => any) | ((nodeState: NodeState<Context, Node>) => any);
+    ) => any;
 
 type MutationDefinition<Context, Node extends GraphNode<Context, any, Node>> =
     (
@@ -72,13 +72,12 @@ type GraphNode<Context, Nodes extends GraphNodes<Context, Nodes>, Node extends G
 };
 
 export type EdgeWeights<Nodes extends GraphNodes<any, Nodes>> = {
-    [From in keyof Nodes]?: {
-        [To in keyof Nodes]?: number
+    [From in keyof Nodes]: {
+        [To in keyof ((Nodes[From])['edges'])]: number
     }
 };
 
 export type GraphNodes<Context, Self extends GraphNodes<Context, Self>> = { [key: string]: GraphNode<Context, Self, GraphNode<Context, Self, any>> };
-
 
 
 type BuiltField<Context, Nodes extends GraphNodes<Context, Nodes>, Node extends GraphNode<Context, Nodes, Node>, Field extends Node['fields']> =
@@ -124,11 +123,11 @@ type SuccessfulTransition<Context, Nodes extends GraphNodes<Context, Nodes>, Nod
 type BuiltGraphTransitionResult<Context, Nodes extends GraphNodes<Context, Nodes>, NodeName extends keyof Nodes> =
     SuccessfulTransition<Context, Nodes, NodeName>;
 
-
 type GoToNode<Context, Nodes extends GraphNodes<Context, Nodes>, Node extends keyof Nodes> =
     Nodes[Node] extends { arg: Decoder<infer NodeArg> }
     ? (arg: NodeArg) => Promise<BuiltGraphTransitionResult<Context, Nodes, Node>>
     : () => Promise<BuiltGraphTransitionResult<Context, Nodes, Node>>
+
 
 type BuiltGraph<Context, Nodes extends GraphNodes<Context, Nodes>> =
     { currentNode: { name: keyof Node } } &
@@ -137,7 +136,19 @@ type BuiltGraph<Context, Nodes extends GraphNodes<Context, Nodes>> =
     };
 
 
-export function build<Context, Nodes extends GraphNodes<Context, Nodes>>(_args: { nodes: Nodes, context: Context, edgeWeights?: EdgeWeights<Nodes> }): BuiltGraph<Context, Nodes> {
+
+export function build<Context, Nodes extends GraphNodes<Context, Nodes>>(args: { nodes: Nodes, context: Context, edgeWeights?: EdgeWeights<Nodes> }): BuiltGraph<Context, Nodes> {
+    let edgeWeights = args.edgeWeights
+    if (!edgeWeights) {
+        edgeWeights = Object.keys(args.nodes).reduce((prev, fromNode: keyof Nodes) => {
+            let edges = args.nodes[fromNode].edges;
+            if (edges) {
+                prev[fromNode] = Object.keys(edges).reduce((prev, edge) => Object.assign(prev, { [edge]: 1 }), {} as { [To in keyof Nodes[keyof Nodes]['edges']]: number });
+            }
+            return prev;
+        }, {} as EdgeWeights<Nodes>)
+    }
+
     return {} as BuiltGraph<Context, Nodes>;
 }
 
@@ -163,13 +174,13 @@ const graph = build({
             edges: {
                 FROG: (args: { name: string }, ctx: unknown) => args.name === 'benny' ? 'transitioned' : 'transitioned',
             }
-        },
-        ESKIMO: {
         }
     },
     context: {}
 });
 
 async function testFunction() {
-    const eskimo = await graph.ESKIMO();
+    const eskimo = await graph.CATS();
+    eskimo.fields.claws()
+
 }
