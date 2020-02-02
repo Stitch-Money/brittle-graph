@@ -1,4 +1,6 @@
 import { Decoder, object, string } from 'decoders';
+import { bfs } from './algorithms/bfs';
+import { GraphAlgorithm, UnweightedGraphRepresention, Node as NodeName, Edge as EdgeName } from './abstractions';
 
 /* If you have multiple possible candidates for an inferred type, the compiler
 * can return either a union or an intersection depending on how those 
@@ -22,8 +24,6 @@ type NodeState<Context, Node extends GraphNode<Context, any, Node>> =
     Node extends { arg: Decoder<infer Arg> }
     ? { ctx: Context, nodeArg: Arg }
     : { ctx: Context };
-
-
 
 type FieldDefinition<Context, Node extends GraphNode<Context, any, Node>> =
     (
@@ -77,7 +77,15 @@ export type EdgeWeights<Nodes extends GraphNodes<any, Nodes>> = {
     }
 };
 
-export type GraphNodes<Context, Self extends GraphNodes<Context, Self>> = { [key: string]: GraphNode<Context, Self, GraphNode<Context, Self, any>> };
+export type GraphNodes<Context, Self extends GraphNodes<Context, Self>> =
+    { [key: string]: GraphNode<Context, Self, GraphNode<Context, Self, any>> }
+    & {
+        INITIAL: {
+            arg?: Decoder<any>,
+            onEnter: Self['INITIAL']['arg'] extends Decoder<infer Arg> ? (arg: Arg) => Context : () => Context
+            edges: {}
+        }
+    };
 
 
 type BuiltField<Context, Nodes extends GraphNodes<Context, Nodes>, Node extends GraphNode<Context, Nodes, Node>, Field extends Node['fields']> =
@@ -129,7 +137,13 @@ type GoToNode<Context, Nodes extends GraphNodes<Context, Nodes>, Node extends ke
     : () => Promise<BuiltGraphTransitionResult<Context, Nodes, Node>>
 
 
-type BuiltGraph<Context, Nodes extends GraphNodes<Context, Nodes>> =
+type ProcessedGraphDefinition<Context, Nodes extends GraphNodes<Context, Nodes>> =
+    { currentNode: { name: keyof Node } } &
+    {
+        [Node in keyof Nodes]: GoToNode<Context, Nodes, Node>
+    };
+
+type GraphInstance<Context, Nodes extends GraphNodes<Context, Nodes>> =
     { currentNode: { name: keyof Node } } &
     {
         [Node in keyof Nodes]: GoToNode<Context, Nodes, Node>
@@ -137,23 +151,52 @@ type BuiltGraph<Context, Nodes extends GraphNodes<Context, Nodes>> =
 
 
 
-export function build<Context, Nodes extends GraphNodes<Context, Nodes>>(args: { nodes: Nodes, context: Context, edgeWeights?: EdgeWeights<Nodes> }): BuiltGraph<Context, Nodes> {
-    let edgeWeights = args.edgeWeights
-    if (!edgeWeights) {
-        edgeWeights = Object.keys(args.nodes).reduce((prev, fromNode: keyof Nodes) => {
-            let edges = args.nodes[fromNode].edges;
-            if (edges) {
-                prev[fromNode] = Object.keys(edges).reduce((prev, edge) => Object.assign(prev, { [edge]: 1 }), {} as { [To in keyof Nodes[keyof Nodes]['edges']]: number });
-            }
-            return prev;
-        }, {} as EdgeWeights<Nodes>)
-    }
+type GraphDefinition<Context, Nodes extends GraphNodes<Context, Nodes>, Algorithm extends GraphAlgorithm<any, any, any, any>> = {
+    nodes: Nodes,
+    initializer: (args: any) => [Context],
+    algorithm: Algorithm
+};
 
-    return {} as BuiltGraph<Context, Nodes>;
+
+
+
+export function process<Context, Nodes extends GraphNodes<Context, Nodes>, Algorithm extends GraphAlgorithm<any, any, any, any>>(args: GraphDefinition<Context, Nodes, Algorithm>): ProcessedGraphDefinition<Context, Nodes> {
+    function getUnweightGraphRepresentation(): UnweightedGraphRepresention {
+        const nodes = args.nodes;
+        const result = {} as UnweightedGraphRepresention;
+        for (let nodeName in nodes) {
+            const node = nodes[nodeName];
+            const edges: { edges: { [key: string]: { arg?: any } } } = { edges: {} };
+            // result[nodeName as NodeName] = { edges: {} };
+            for (let edge in node.edges) {
+                edges.edges[edge as string] = { arg: nodes[edge].arg };
+            }
+            result.nodes[nodeName] = edges;
+        }
+        return result;
+    }
+    const algorithm = args.algorithm;
+    const unweightedGraph = getUnweightGraphRepresentation();
+
+    const parameters = algorithm.initialParameters(unweightedGraph, {});
+
+    return {} as ProcessedGraphDefinition<Context, Nodes>;
 }
 
-const graph = build({
+export function instantiate<GraphDefinition extends ProcessedGraphDefinition<any, any>>(args: {
+    processedGraph: GraphDefinition
+}) {
+
+}
+
+const processedGraph = process({
     nodes: {
+        INITIAL: {
+            onEnter: () => ({}),
+            edges: {
+
+            }
+        },
         FROG: {
             asserts: [() => { }],
             arg: object({
@@ -176,11 +219,14 @@ const graph = build({
             }
         }
     },
-    context: {}
+    initializer: () => [({})],
+    algorithm: bfs
 });
 
+
+
 async function testFunction() {
-    const eskimo = await graph.CATS();
+    const eskimo = await processedGraph.CATS();
     eskimo.fields.claws()
 
 }

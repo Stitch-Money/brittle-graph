@@ -13,7 +13,9 @@
   "license": "MIT",
   "dependencies": {
     "decoders": "^1.17.0",
-    "lemons": "^1.4.3"
+    "denque": "^1.4.1",
+    "lemons": "^1.4.3",
+    "tinyqueue": "^2.0.3"
   },
   "devDependencies": {
     "@types/jest": "^24.9.1",
