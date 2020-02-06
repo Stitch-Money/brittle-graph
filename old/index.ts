@@ -1,6 +1,6 @@
 import { Decoder, object, string } from 'decoders';
 import { bfs } from './algorithms/bfs';
-import { GraphAlgorithm, UnweightedGraphRepresention, Node as NodeName, Edge as EdgeName } from './abstractions';
+import { GraphAlgorithm, UnweightedGraphRepresention, Node as NodeName, Edge as EdgeName } from './algorithm-abstractions';
 
 /* If you have multiple possible candidates for an inferred type, the compiler
 * can return either a union or an intersection depending on how those 
@@ -17,7 +17,17 @@ import { GraphAlgorithm, UnweightedGraphRepresention, Node as NodeName, Edge as 
 //     (U extends any ? (k: U) => void : never) extends
 //     ((k: infer I) => void) ? I : never
 
-type TransitionResult = 'transitioned';
+export type Maybe<T> = T | null | undefined;
+
+export type UnsignedFloat = number & { __unsigned__: void };
+
+type TransitionResult =
+    { type: 'transition_succeeded', cost: UnsignedFloat, from: Node, to: Node, arg?: any }
+    | { type: 'transition_failed', reason: 'error', cost: UnsignedFloat, from: Node, to: Node, arg?: any, retry?: boolean }
+    | { type: 'transition_failed', reason: 'graph_faulted', from: Node, to: Node, arg?: any }
+    | { type: 'transition_failed', reason: 'unreachable' }
+    | { type: 'transition_failed', reason: 'unexpected_transition', from: Node, desiredNode: Node, resultantNode: Node, cost: UnsignedFloat };
+
 type PromiseOrResult<T> = Promise<T> | T;
 
 type NodeState<Context, Node extends GraphNode<Context, any, Node>> =
@@ -35,13 +45,15 @@ type MutationDefinition<Context, Node extends GraphNode<Context, any, Node>> =
     (
         nodeState: NodeState<Context, Node>,
         fieldArg: any
-    ) => any;
+    ) => ([any] | [any, Maybe<TransitionResult>]);
 
 
-type GraphEdge<Context, Nodes extends GraphNodes<Context, Nodes>, Node extends keyof Nodes> =
+type IncomingGraphEdge<Context, Nodes extends GraphNodes<Context, Nodes>, Node extends keyof Nodes> =
     (Nodes[Node]['arg']) extends Decoder<infer Arg>
     ? ((arg: Arg, ctx: Context) => PromiseOrResult<TransitionResult>)
     : ((ctx: Context) => PromiseOrResult<TransitionResult>);
+
+
 
 type GraphNode<Context, Nodes extends GraphNodes<Context, Nodes>, Node extends GraphNode<Context, Nodes, Node>> = {
     /** Decoder describing the required arguments to enter this node. 
@@ -66,25 +78,23 @@ type GraphNode<Context, Nodes extends GraphNodes<Context, Nodes>, Node extends G
     mutations?: {
         [key: string]: MutationDefinition<Context, Node>
     },
-    edges?: {
-        [Node in keyof Nodes]?: GraphEdge<Context, Nodes, Node>
+    incomingEdges?: {
+        [Node in keyof Nodes]?: IncomingGraphEdge<Context, Nodes, Node>
     }
 };
 
+type GraphNodeTemplate<Arg, Context, Nodes extends GraphNodes<Context, Nodes>, Node extends GraphNode<Context, Nodes, Node>> = (arg: Arg) => GraphNode<Context, Nodes, Node>;
+
 export type EdgeWeights<Nodes extends GraphNodes<any, Nodes>> = {
     [From in keyof Nodes]: {
-        [To in keyof ((Nodes[From])['edges'])]: number
+        [To in keyof ((Nodes[From])['incomingEdges'])]: number
     }
 };
 
 export type GraphNodes<Context, Self extends GraphNodes<Context, Self>> =
     { [key: string]: GraphNode<Context, Self, GraphNode<Context, Self, any>> }
     & {
-        INITIAL: {
-            arg?: Decoder<any>,
-            onEnter: Self['INITIAL']['arg'] extends Decoder<infer Arg> ? (arg: Arg) => Context : () => Context
-            edges: {}
-        }
+        INITIAL: GraphNode<Context, Self, GraphNode<Context, Self, any>>
     };
 
 
@@ -151,16 +161,12 @@ type GraphInstance<Context, Nodes extends GraphNodes<Context, Nodes>> =
 
 
 
-type GraphDefinition<Context, Nodes extends GraphNodes<Context, Nodes>, Algorithm extends GraphAlgorithm<any, any, any, any>> = {
+type GraphDefinition<Context, Nodes extends GraphNodes<Context, Nodes>, Algorithm extends GraphAlgorithm<any, any, any>> = {
     nodes: Nodes,
-    initializer: (args: any) => [Context],
     algorithm: Algorithm
 };
 
-
-
-
-export function process<Context, Nodes extends GraphNodes<Context, Nodes>, Algorithm extends GraphAlgorithm<any, any, any, any>>(args: GraphDefinition<Context, Nodes, Algorithm>): ProcessedGraphDefinition<Context, Nodes> {
+export function process<Context, Nodes extends GraphNodes<Context, Nodes>, Algorithm extends GraphAlgorithm<any, any, any>>(args: GraphDefinition<Context, Nodes, Algorithm>): ProcessedGraphDefinition<Context, Nodes> {
     function getUnweightGraphRepresentation(): UnweightedGraphRepresention {
         const nodes = args.nodes;
         const result = {} as UnweightedGraphRepresention;
@@ -168,7 +174,7 @@ export function process<Context, Nodes extends GraphNodes<Context, Nodes>, Algor
             const node = nodes[nodeName];
             const edges: { edges: { [key: string]: { arg?: any } } } = { edges: {} };
             // result[nodeName as NodeName] = { edges: {} };
-            for (let edge in node.edges) {
+            for (let edge in node.incomingEdges) {
                 edges.edges[edge as string] = { arg: nodes[edge].arg };
             }
             result.nodes[nodeName] = edges;
@@ -178,7 +184,7 @@ export function process<Context, Nodes extends GraphNodes<Context, Nodes>, Algor
     const algorithm = args.algorithm;
     const unweightedGraph = getUnweightGraphRepresentation();
 
-    const parameters = algorithm.initialParameters(unweightedGraph, {});
+    const parameters = algorithm.initialParameters(unweightedGraph);
 
     return {} as ProcessedGraphDefinition<Context, Nodes>;
 }
@@ -192,8 +198,7 @@ export function instantiate<GraphDefinition extends ProcessedGraphDefinition<any
 const processedGraph = process({
     nodes: {
         INITIAL: {
-            onEnter: () => ({}),
-            edges: {
+            incomingEdges: {
 
             }
         },
@@ -212,14 +217,13 @@ const processedGraph = process({
                 legs: (state, arg: { includeToes: boolean, includeBacklegs: boolean }) => arg.includeBacklegs ? 4 : 2
             },
             mutations: {
-                jump: (ctx, height: number) => 'ok'
+                jump: (ctx, height: number) => ['ok']
             },
-            edges: {
+            incomingEdges: {
                 FROG: (args: { name: string }, ctx: unknown) => args.name === 'benny' ? 'transitioned' : 'transitioned',
             }
         }
     },
-    initializer: () => [({})],
     algorithm: bfs
 });
 

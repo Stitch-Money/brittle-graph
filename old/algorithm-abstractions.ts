@@ -61,39 +61,24 @@ export type NavigationResult =
     | { type: 'navigation_succeeded', totalCost: UnsignedFloat }
     | { type: 'navigation_failed' };
 
-export type GraphAlgorithm<Parameters, GraphAlgorithmState, AlgorithmArg = never, ParameterDigest = Parameters> = {
-    initialParameters: (graph: UnweightedGraphRepresention, arg: AlgorithmArg) => Parameters,
+type ExtractDecoderType<T> = T extends Decoder<infer Arg> ? Arg : never;
 
-    applyDigest: (prevParameters: Parameters, digest: ParameterDigest) => Parameters
 
-    serializeDigest: (p: ParameterDigest) => Json,
-    deserializeDigest: (json: Json) => ParameterDigest,
+export type GraphAlgorithm<GraphAlgorithmState, Parameters, ParameterDigest = Parameters> =
+    {
+        initialParameters: (graph: UnweightedGraphRepresention) => Parameters,
+        applyDigest: (prevParameters: Parameters, digest: ParameterDigest) => Parameters
 
-    initialGraphAlgorithmState: (initializeArgs: {
-        graph: UnweightedGraphRepresention,
-        parameters: Parameters,
-        initialGraphState: GraphState
-    }) => GraphAlgorithmState,
+        serializeDigest: (p: ParameterDigest) => Json,
+        deserializeDigest: (json: Json) => ParameterDigest,
 
-    beginNavigation: (navArgs: {
-        graph: UnweightedGraphRepresention,
-        graphState: GraphState,
-        algorithmState: GraphAlgorithmState,
-        targetNode: Node,
-        targetNodeArg?: any
-    }) => GraphAlgorithmState;
+        initialGraphAlgorithmState: (initializeArgs: {
+            graph: UnweightedGraphRepresention,
+            parameters: Parameters,
+            initialGraphState: GraphState
+        }) => GraphAlgorithmState,
 
-    choseNextEdge: (navArgs: {
-        graph: UnweightedGraphRepresention,
-        graphState: GraphState,
-        algorithmState: GraphAlgorithmState,
-        targetNode: Node,
-        targetNodeArg?: any
-    }) => Maybe<Edge>;
-
-    nextStateAfterEdgeTransitionAttempted: (
-        navArgs: {
-            transitionResult: TransitionResult,
+        beginNavigation: (navArgs: {
             graph: UnweightedGraphRepresention,
             graphState: GraphState,
             algorithmState: GraphAlgorithmState,
@@ -101,13 +86,31 @@ export type GraphAlgorithm<Parameters, GraphAlgorithmState, AlgorithmArg = never
             targetNodeArg?: any
         }) => GraphAlgorithmState;
 
-    endNavigation: (navArgs: {
-        navigationResult: NavigationResult, prevState: GraphAlgorithmState,
-        graph: UnweightedGraphRepresention,
-        graphState: GraphState,
-        algorithmState: GraphAlgorithmState,
-        prevParameters: Parameters
-    }) => [GraphAlgorithmState, Parameters];
+        choseNextEdge: (navArgs: {
+            graph: UnweightedGraphRepresention,
+            graphState: GraphState,
+            algorithmState: GraphAlgorithmState,
+            targetNode: Node,
+            targetNodeArg?: any
+        }) => Maybe<Edge>;
 
-    receiveNewParameters: (args: { prevParameters: Parameters, newParameters: Parameters, graphState: GraphState, prevAlgorithmState: GraphAlgorithmState }) => Parameters
-};
+        nextStateAfterEdgeTransitionAttempted: (
+            navArgs: {
+                transitionResult: TransitionResult,
+                graph: UnweightedGraphRepresention,
+                graphState: GraphState,
+                algorithmState: GraphAlgorithmState,
+                targetNode: Node,
+                targetNodeArg?: any
+            }) => GraphAlgorithmState;
+
+        endNavigation: (navArgs: {
+            navigationResult: NavigationResult, prevState: GraphAlgorithmState,
+            graph: UnweightedGraphRepresention,
+            graphState: GraphState,
+            algorithmState: GraphAlgorithmState,
+            prevParameters: Parameters
+        }) => [GraphAlgorithmState, Parameters];
+
+        receiveNewParameters: (args: { prevParameters: Parameters, newParameters: Parameters, graphState: GraphState, prevAlgorithmState: GraphAlgorithmState }) => Parameters
+    };

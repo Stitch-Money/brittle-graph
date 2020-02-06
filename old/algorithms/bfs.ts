@@ -1,5 +1,6 @@
-import { GraphAlgorithm, getReachableEdges, Node, Edge, UnsignedFloat, UnweightedGraphRepresention, isValidEdge } from '../abstractions';
+import { GraphAlgorithm, getReachableEdges, Node, Edge, UnsignedFloat, UnweightedGraphRepresention, isValidEdge } from '../algorithm-abstractions';
 import Queue from 'denque'
+import { object } from 'decoders';
 
 type BfsState = { path: null | Queue<Edge> };
 type BfsParameters = {};
@@ -41,7 +42,7 @@ function getPathWithFewestEdges(graph: UnweightedGraphRepresention, startNode: N
     }
 }
 
-export const bfs: GraphAlgorithm<BfsParameters, BfsState> = {
+export const bfs: GraphAlgorithm<BfsState, BfsParameters, BfsParameters> = {
     initialParameters: (graph) => ({}),
     applyDigest: (p1, p2) => ({}),
 
