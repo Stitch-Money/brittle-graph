@@ -1,4 +1,4 @@
-
+import { Decoder } from 'decoders';
 
 export type TransitionResult = { type: 'succeeded' };
 
@@ -9,15 +9,15 @@ export type MutationResult =
 
 export type Maybe<T> = T | null;
 
-// export type Edge<GraphState, ThisGraph extends Graph<GraphState, ThisGraph>, NodeName extends keyof ThisGraph['nodes']> =
-//     ThisGraph['nodes'][NodeName] extends NodeTemplate<GraphState, ThisGraph, NodeName>
-//     ? (arg: InferDecoderArg<ThisGraph['nodes'][NodeName]['arg']>) => any
-//     : () => any;
+export type Edge<GraphState, ThisGraph extends Graph<GraphState, ThisGraph>, NodeName extends keyof ThisGraph['nodes']> =
+    ThisGraph['nodes'][NodeName] extends NodeTemplate<any, GraphState, ThisGraph, NodeName>
+    ? (arg: InferTemplatedNodeArg<ThisGraph['nodes'][NodeName]>) => any
+    : () => any;
 
 
 export type FieldContext = any;
 export type MutationContext = any;
-export type Edge = any;
+
 
 export type Node<GraphState, ThisGraph extends Graph<GraphState, ThisGraph>> = {
     onEnter?: () => {},
@@ -35,7 +35,7 @@ export type Node<GraphState, ThisGraph extends Graph<GraphState, ThisGraph>> = {
 };
 
 
-type ExtractTemplatedNodeArg<T extends NodeTemplate<any, any, any, any>> = T extends NodeTemplate<infer Arg, any, any, any> ? Arg : never;
+type InferTemplatedNodeArg<T extends NodeTemplate<any, any, any, any>> = T extends NodeTemplate<infer Arg, any, any, any> ? Arg : never;
 
 
 type AdjacentTemplatedNodeArgMapping<
@@ -50,8 +50,8 @@ type AdjacentTemplatedNodeArgMapping<
         ThisGraph['nodes'][NodeName] extends NodeTemplate<any, GraphState, ThisGraph, NodeName>
         // Then select only the adjacent nodes
         ? (
-            (keyof ThisGraph['nodes'][NodeName]['edges']) extends TargetNodeName
-            ? (arg: NodeArg) => Maybe<ExtractTemplatedNodeArg<ThisGraph['nodes'][NodeName]>>
+            (keyof (ThisGraph['nodes'][NodeName]['edges'])) extends TargetNodeName
+            ? (arg: NodeArg) => Maybe<InferTemplatedNodeArg<ThisGraph['nodes'][NodeName]>>
             : never
         )
         : never
@@ -60,13 +60,13 @@ type AdjacentTemplatedNodeArgMapping<
 
 
 
-/// BACKLINK ARG IDEA!
 export type NodeTemplate<
     NodeArg,
     GraphState,
     ThisGraph extends Graph<GraphState, ThisGraph>,
     NodeName extends keyof ThisGraph['nodes']
     > = {
+        argDecoder: Decoder<NodeArg>,
         mapAdjacentTemplatedNodeArgs: AdjacentTemplatedNodeArgMapping<NodeArg, GraphState, ThisGraph, NodeName>
     } & Node<GraphState, ThisGraph>;
 
@@ -76,3 +76,5 @@ export type Graph<GraphState, Self extends Graph<GraphState, Self>> = {
         INITIAL: Node<GraphState, Self> | NodeTemplate<any, GraphState, Self, 'INITIAL'>,
     } & { [NodeName in keyof Self['nodes']]: Node<GraphState, Self> | NodeTemplate<any, GraphState, Self, NodeName> }
 };
+
+
