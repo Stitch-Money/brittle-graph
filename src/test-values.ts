@@ -1,35 +1,27 @@
 import { Graph } from "./public-types";
 import { object, string } from "decoders";
 
-function graphAcceptingFunction<G extends Graph<any, G>>(graph: G) {
+function graphAcceptingFunction<G extends Graph<G>>(graph: G) {
 
 }
 
 graphAcceptingFunction({
     nodes: {
         INITIAL: {
-            edges: {}
+
         },
         FROG: {
-            argDecoder: object({ name: string }),
-            fields: {
-                legs: (arg: { includeToes: boolean }) => 4
+            edges: {
+                CATS: (ctx: any, age: number) => ({ type: 'transitioned' }),
+                FROG: (ctx: any, arg: { age: number, name: string }) => arg.age === 23 ? ({ type: 'transitioned' }) : ({ type: 'transitioned' }),
             },
-            mapAdjacentTemplatedNodeArgs: {
-                CATS: (args: { name: string }) => 'benny'
-            }
         },
         CATS: {
-            argDecoder: string,
             mapAdjacentTemplatedNodeArgs: {
-                FROG: (name: string) => ({ name })
-            },
-            fields: {
-                claws: () => 10,
-                legs: (arg: { includeToes: boolean, includeBacklegs: boolean }) => arg.includeBacklegs ? 4 : 2
+                FROG: (arg: number) => ({ name: 'eh', age: 0 }),
             },
             edges: {
-                FROG: (args: { name: string }) => args.name === 'benny' ? 'transitioned' : 'no transition',
+                FROG: (ctx, arg: { height: number }) => ({ type: 'transitioned' })
             }
         }
     }
