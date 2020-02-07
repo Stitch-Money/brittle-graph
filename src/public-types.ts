@@ -48,8 +48,7 @@ type Node<ThisGraph extends Graph<ThisGraph>, Self extends { edges?: any, mapAdj
         [key: string]: (ctx: MutationContext, mutationArg: any) => MutationResult<ThisGraph>
     },
     edges?: NodeEdges<ThisGraph, Self>
-    mapAdjacentTemplatedNodeArgs?: AdjacentTemplatedNodeArgMapping<ThisGraph, Name, Self>
-};
+} & (GetNodeArgs<ThisGraph, Name> extends never ? {} : { mapAdjacentTemplatedNodeArgs: AdjacentTemplatedNodeArgMapping<ThisGraph, Name, Self> });
 
 type EdgeContext = any;
 
@@ -76,6 +75,11 @@ type AdjacentTemplatedNodeArgMapping<
     : (("Non adjacent, templated nodes detected: " | Exclude<keyof (Node['mapAdjacentTemplatedNodeArgs']), (GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>)>));
 
 
+/**
+ *  NB, order is important here, () => uknown is the most restrictive check,
+ *  while (ctx: uknown, arg: infer Arg) => any is the least, which means it matches
+ *  both (ctx) => any and () => any
+ */
 type InferEdgeArgFromFunction<T extends () => any> =
     T extends () => unknown
     ? never

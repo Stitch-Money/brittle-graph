@@ -18,6 +18,7 @@ graphAcceptingFunction({
                 FROG: (ctx: any, arg: { age: number, name: string }) => arg.age === 23 ? ({ type: 'transitioned' }) : ({ type: 'transitioned' }),
                 INITIAL: () => ({ type: 'transitioned' }),
             },
+            mapAdjacentTemplatedNodeArgs: {}
         },
         CATS: {
             mapAdjacentTemplatedNodeArgs: {
