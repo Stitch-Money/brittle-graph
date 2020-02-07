@@ -1,11 +1,7 @@
-import { Graph } from "./public-types";
-import { object, string, boolean } from "decoders";
+import { graph } from ".";
 
-function graphAcceptingFunction<G extends Graph<G>>(graph: G) {
 
-}
-
-graphAcceptingFunction({
+const typecheckedGraph = graph({
     nodes: {
         INITIAL: {
             edges: {
@@ -31,3 +27,4 @@ graphAcceptingFunction({
         }
     }
 });
+
