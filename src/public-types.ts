@@ -71,7 +71,7 @@ type AdjacentTemplatedNodeArgMapping<
     > =
     keyof Node['mapAdjacentTemplatedNodeArgs'] extends GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>
     ? ({
-        [NodeName in GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>]:
+        [NodeName in GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>]?:
         (arg: GetNodeArgs<ThisGraph, TargetNodeName>) => GetNodeArgs<ThisGraph, NodeName> })
     : (("Non adjacent, templated nodes detected: " | Exclude<keyof (Node['mapAdjacentTemplatedNodeArgs']), (GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>)>));
 
