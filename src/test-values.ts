@@ -1,5 +1,5 @@
 import { Graph } from "./public-types";
-import { object, string } from "decoders";
+import { object, string, boolean } from "decoders";
 
 function graphAcceptingFunction<G extends Graph<G>>(graph: G) {
 
@@ -16,14 +16,16 @@ graphAcceptingFunction({
             edges: {
                 CATS: (ctx: any, age: number) => ({ type: 'transitioned' }),
                 FROG: (ctx: any, arg: { age: number, name: string }) => arg.age === 23 ? ({ type: 'transitioned' }) : ({ type: 'transitioned' }),
+                INITIAL: () => ({ type: 'transitioned' }),
             },
         },
         CATS: {
             mapAdjacentTemplatedNodeArgs: {
-                FROG: (arg: number) => ({ name: 'eh', age: 0 }),
+                FROG: (arg: number) => ({ name: 'eh', age: 0, height: 11 }),
             },
             edges: {
-                FROG: (ctx, arg: { height: number }) => ({ type: 'transitioned' })
+                FROG: (ctx, arg: { height: number }) => ({ type: 'transitioned' }),
+                INITIAL: (ctx, arg: boolean) => ({ type: 'transitioned' })
             }
         }
     }

@@ -4,6 +4,20 @@ export type MutationResult<ThisGraph extends Graph<ThisGraph>> =
     { type: 'transition' }
     | { type: 'update_context' };
 
+/* If you have multiple possible candidates for an inferred type, the compiler
+* can return either a union or an intersection depending on how those 
+*candidates are used. 
+*
+* ((() => A) | (() => B)) extends (() => infer T) ?T: never 
+* will produce A | B because function types are covariant in their return type.
+* But((x: A) => void) | ((y: B) => void) 
+*    extends ((z: infer T) => void) ? T : never 
+* will produce A & B because function types are contravariant in their argument
+* types
+*/
+type UnionToIntersection<U> =
+    (U extends any ? (k: U) => void : never) extends
+    ((k: infer I) => void) ? I : never
 
 export type Maybe<T> = T | null;
 
@@ -43,12 +57,10 @@ type GetAdjacentNodeNames<ThisGraph extends Graph<ThisGraph>, TargetNodeName ext
     [NodeName in keyof ThisGraph['nodes']]: ThisGraph['nodes'][NodeName] extends { edges: { [K in TargetNodeName]: any } } ? NodeName : never
 }[keyof ThisGraph['nodes']];
 
-type GetAdjacentTemplatedNodeNames<ThisGraph extends Graph<ThisGraph>, TargetNodeName extends keyof ThisGraph['nodes']> = {
-    [NodeName in keyof ThisGraph['nodes']]:
-    ThisGraph['nodes'][NodeName] extends { edges: { [K in TargetNodeName]: any } }
-    ? (GetNodeArgs<ThisGraph, NodeName> extends never ? never : NodeName)
-    : never
-}[keyof ThisGraph['nodes']];
+type GetAdjacentTemplatedNodeNames<ThisGraph extends Graph<ThisGraph>, TargetNodeName extends keyof ThisGraph['nodes']> =
+    {
+        [K in GetAdjacentNodeNames<ThisGraph, TargetNodeName>]: (GetNodeArgs<ThisGraph, K> extends never ? never : K)
+    }[GetAdjacentNodeNames<ThisGraph, TargetNodeName>];
 
 
 
@@ -58,12 +70,23 @@ type AdjacentTemplatedNodeArgMapping<
     Node extends { mapAdjacentTemplatedNodeArgs?: any }
     > =
     keyof Node['mapAdjacentTemplatedNodeArgs'] extends GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>
-    ? ({ [NodeName in GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>]: (arg: GetNodeArgs<ThisGraph, TargetNodeName>) => Maybe<GetNodeArgs<ThisGraph, NodeName>> })
-    : (("Non adjacent, templeted nodes detected: " | Exclude<keyof (Node['mapAdjacentTemplatedNodeArgs']), (GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>)>));
+    ? ({
+        [NodeName in GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>]:
+        (arg: GetNodeArgs<ThisGraph, TargetNodeName>) => GetNodeArgs<ThisGraph, NodeName> })
+    : (("Non adjacent, templated nodes detected: " | Exclude<keyof (Node['mapAdjacentTemplatedNodeArgs']), (GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>)>));
 
 
 type InferEdgeArgFromFunction<T extends () => any> =
-    T extends (ctx: EdgeContext, arg: infer Arg) => any ? Arg : never;
+    T extends () => unknown
+    ? never
+    : (T extends (ctx: unknown) => any
+        ? never
+        : (
+            T extends (ctx: unknown, arg: infer Arg) => any
+            ? Arg :
+            never
+        )
+    );
 
 type GetNodeArg<ThisGraph extends Graph<ThisGraph>, AdjacentNodeName extends keyof ThisGraph['nodes'], TargetNodeName extends keyof ThisGraph['nodes']> =
     ThisGraph['nodes'][AdjacentNodeName]['edges'] extends { [K in TargetNodeName]: any }
@@ -73,9 +96,11 @@ type GetNodeArg<ThisGraph extends Graph<ThisGraph>, AdjacentNodeName extends key
 
 
 export type GetNodeArgs<ThisGraph extends Graph<ThisGraph>, TargetNodeName extends keyof ThisGraph['nodes']> =
-    {
-        [AdjacentNodeName in GetAdjacentNodeNames<ThisGraph, TargetNodeName>]: GetNodeArg<ThisGraph, AdjacentNodeName, TargetNodeName>
-    }[GetAdjacentNodeNames<ThisGraph, TargetNodeName>];
+    UnionToIntersection<
+        {
+            [AdjacentNodeName in GetAdjacentNodeNames<ThisGraph, TargetNodeName>]: GetNodeArg<ThisGraph, AdjacentNodeName, TargetNodeName>
+        }[GetAdjacentNodeNames<ThisGraph, TargetNodeName>]
+    >;
 
 
 export type Graph<Self extends Graph<Self>> = {
