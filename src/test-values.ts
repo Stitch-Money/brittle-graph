@@ -8,7 +8,9 @@ function graphAcceptingFunction<G extends Graph<G>>(graph: G) {
 graphAcceptingFunction({
     nodes: {
         INITIAL: {
-
+            edges: {
+                CATS: (ctx: any, arg: number) => ({ type: 'transitioned' })
+            }
         },
         FROG: {
             edges: {

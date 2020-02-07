@@ -43,14 +43,24 @@ type GetAdjacentNodeNames<ThisGraph extends Graph<ThisGraph>, TargetNodeName ext
     [NodeName in keyof ThisGraph['nodes']]: ThisGraph['nodes'][NodeName] extends { edges: { [K in TargetNodeName]: any } } ? NodeName : never
 }[keyof ThisGraph['nodes']];
 
+type GetAdjacentTemplatedNodeNames<ThisGraph extends Graph<ThisGraph>, TargetNodeName extends keyof ThisGraph['nodes']> = {
+    [NodeName in keyof ThisGraph['nodes']]:
+    ThisGraph['nodes'][NodeName] extends { edges: { [K in TargetNodeName]: any } }
+    ? (GetNodeArgs<ThisGraph, NodeName> extends never ? never : NodeName)
+    : never
+}[keyof ThisGraph['nodes']];
+
+
+
 type AdjacentTemplatedNodeArgMapping<
     ThisGraph extends Graph<ThisGraph>,
     TargetNodeName extends keyof ThisGraph['nodes'],
     Node extends { mapAdjacentTemplatedNodeArgs?: any }
     > =
-    keyof Node['mapAdjacentTemplatedNodeArgs'] extends GetAdjacentNodeNames<ThisGraph, TargetNodeName>
-    ? ({ [NodeName in GetAdjacentNodeNames<ThisGraph, TargetNodeName>]: (arg: GetNodeArgs<ThisGraph, TargetNodeName>) => GetNodeArgs<ThisGraph, NodeName> })
-    : (("Non adjacent nodes detected: " | Exclude<keyof (Node['mapAdjacentTemplatedNodeArgs']), (GetAdjacentNodeNames<ThisGraph, TargetNodeName>)>));
+    keyof Node['mapAdjacentTemplatedNodeArgs'] extends GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>
+    ? ({ [NodeName in GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>]: (arg: GetNodeArgs<ThisGraph, TargetNodeName>) => Maybe<GetNodeArgs<ThisGraph, NodeName>> })
+    : (("Non adjacent, templeted nodes detected: " | Exclude<keyof (Node['mapAdjacentTemplatedNodeArgs']), (GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>)>));
+
 
 type InferEdgeArgFromFunction<T extends () => any> =
     T extends (ctx: EdgeContext, arg: infer Arg) => any ? Arg : never;
