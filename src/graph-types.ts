@@ -15,7 +15,10 @@ export type TransitionResult<ThisGraph extends Graph<ThisGraph>> =
     | { type: 'graph_faulted', message?: string, data?: any };
 
 export type Mutation<ThisGraph extends Graph<ThisGraph>> =
-    { type: 'transition', to: keyof ThisGraph['nodes'] };
+    { type: 'transitioned', to: keyof ThisGraph['nodes'] }
+    | { type: 'update_state', newState: InferGraphState<ThisGraph> }
+    | { type: 'graph_faulted', message?: string, data?: any }
+    ;
 
 export type MutationResult<ThisGraph extends Graph<ThisGraph>> =
     { result?: any, effects?: Array<Mutation<ThisGraph>> };
@@ -129,53 +132,3 @@ export type Graph<Self extends Graph<Self>> = {
     nodes: { [NodeName in keyof Self['nodes']]: Node<Self, Self['nodes'][NodeName], NodeName> },
     initializer: (arg: any) => Promise<{ currentNode: keyof (Self['nodes']), currentState: any }>
 };
-
-type InferCompiledField<T extends (ctx: any, fieldArg: any) => any> =
-    T extends (ctx: any) => infer ReturnType
-    ? (() => ReturnType)
-    : (
-        T extends ((ctx: any, fieldArg: infer FieldArg) => infer ReturnType)
-        ? ((fieldArg: FieldArg) => ReturnType)
-        : never
-    );
-
-
-type InferMutationResult<T extends (ctx: any, mutationArg: any) => Promise<MutationResult<any>>> =
-    T extends ((ctx: any, fieldArg: any) => Promise<{ result: infer Result }>)
-    ? Result
-    : void;
-
-type InferCompiledMutation<T extends (ctx: any, mutationArg: any) => Promise<MutationResult<any>>> =
-    T extends (ctx: any) => any
-    ? (() => Promise<InferMutationResult<T>>)
-    : (
-        T extends ((ctx: any, fieldArg: infer FieldArg) => any)
-        ? ((fieldArg: FieldArg) => Promise<InferMutationResult<T>>)
-        : never
-    );
-
-type InferCompileNodeFunction<G extends Graph<G>, NodeName extends keyof G['nodes']> =
-    GetNodeArgs<G, NodeName> extends never
-    ? () => Promise<{
-        fields: {
-            [FieldName in keyof G['nodes'][NodeName]['fields']]:
-            InferCompiledField<G['nodes'][NodeName]['fields'][FieldName]>
-        },
-        mutations: {
-            [FieldName in keyof G['nodes'][NodeName]['mutations']]: InferCompiledMutation<G['nodes'][NodeName]['mutations'][FieldName]>
-        }
-    }>
-    : (arg: GetNodeArgs<G, NodeName>) => Promise<{
-        fields: {
-            [FieldName in keyof G['nodes'][NodeName]['fields']]:
-            InferCompiledField<G['nodes'][NodeName]['fields'][FieldName]>
-        },
-        mutations: {
-            [FieldName in keyof G['nodes'][NodeName]['mutations']]: InferCompiledMutation<G['nodes'][NodeName]['mutations'][FieldName]>
-        }
-    }>;
-
-export type CompiledGraphInstance<G extends Graph<G>> = {
-    [NodeName in keyof G['nodes']]: InferCompileNodeFunction<G, NodeName>
-}
-
