@@ -1,8 +1,11 @@
+
 export type TransitionResult<ThisGraph extends Graph<ThisGraph>> = { type: 'transitioned' };
 
+export type MutationEffect<ThisGraph extends Graph<ThisGraph>> =
+    { type: 'transition' };
+
 export type MutationResult<ThisGraph extends Graph<ThisGraph>> =
-    { type: 'transition' }
-    | { type: 'update_context' };
+    { result?: any, effects?: Array<MutationEffect<ThisGraph>> };
 
 /* If you have multiple possible candidates for an inferred type, the compiler
 * can return either a union or an intersection depending on how those 
@@ -45,7 +48,7 @@ type Node<ThisGraph extends Graph<ThisGraph>, Self extends { edges?: any, mapAdj
         [fieldName: string]: (ctx: FieldContext, fieldArg: any) => any
     },
     mutations?: {
-        [key: string]: (ctx: MutationContext, mutationArg: any) => MutationResult<ThisGraph>
+        [key: string]: (ctx: MutationContext, mutationArg: any) => Promise<MutationResult<ThisGraph>>
     },
     edges?: NodeEdges<ThisGraph, Self>
 } & (GetNodeArgs<ThisGraph, Name> extends never ? {} : { mapAdjacentTemplatedNodeArgs: AdjacentTemplatedNodeArgMapping<ThisGraph, Name, Self> });
@@ -120,9 +123,15 @@ type InferCompiledField<T extends (ctx: FieldContext, fieldArg: any) => any> =
         : never
     );
 
-type InferCompiledMutation<T extends (ctx: MutationContext, mutationArg: any) => MutationResult<any>> =
+
+type InferMutationResult<T extends (ctx: any, mutationArg: any) => Promise<MutationResult<any>>> =
+    T extends ((ctx: any, fieldArg: any) => Promise<{ result: infer Result }>)
+    ? Result
+    : void;
+
+type InferCompiledMutation<T extends (ctx: MutationContext, mutationArg: any) => Promise<MutationResult<any>>> =
     T extends (ctx: FieldContext) => any
-    ? (() => any)
+    ? (() => InferMutationResult<T>)
     : (
         T extends ((ctx: FieldContext, fieldArg: infer FieldArg) => any)
         ? ((fieldArg: FieldArg) => any)
