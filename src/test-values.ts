@@ -1,5 +1,9 @@
-import { graph } from ".";
+import { graph } from "./index";
+import { Graph, CompiledGraphInstance } from "./public-types";
 
+function spuriousGraphProcessor<G extends Graph<G>>(graph: G): CompiledGraphInstance<G> {
+    return {} as CompiledGraphInstance<G>;
+}
 
 const typecheckedGraph = graph({
     nodes: {
@@ -17,6 +21,11 @@ const typecheckedGraph = graph({
             mapAdjacentTemplatedNodeArgs: {}
         },
         CATS: {
+            fields: {
+                paws: (ctx, arg: number) => arg * 4,
+                feets: (ctx) => 4,
+                claws: () => 2,
+            },
             mapAdjacentTemplatedNodeArgs: {
                 FROG: (arg: number) => ({ name: 'eh', age: 0, height: 11 }),
             },
@@ -28,3 +37,8 @@ const typecheckedGraph = graph({
     }
 });
 
+const instanceOfGraph = spuriousGraphProcessor(typecheckedGraph);
+
+let result = instanceOfGraph.CATS(4);
+
+let b = instanceOfGraph.FROG({ age: 34, name: 'henry', height: 23 });

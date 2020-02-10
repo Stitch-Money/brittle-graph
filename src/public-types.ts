@@ -111,4 +111,45 @@ export type Graph<Self extends Graph<Self>> = {
     nodes: { [NodeName in keyof Self['nodes']]: Node<Self, Self['nodes'][NodeName], NodeName> }
 };
 
+type InferCompiledField<T extends (ctx: FieldContext, fieldArg: any) => any> =
+    T extends (ctx: FieldContext) => infer ReturnType
+    ? (() => ReturnType)
+    : (
+        T extends ((ctx: FieldContext, fieldArg: infer FieldArg) => infer ReturnType)
+        ? ((fieldArg: FieldArg) => ReturnType)
+        : never
+    );
 
+type InferCompiledMutation<T extends (ctx: MutationContext, mutationArg: any) => MutationResult<any>> =
+    T extends (ctx: FieldContext) => any
+    ? (() => any)
+    : (
+        T extends ((ctx: FieldContext, fieldArg: infer FieldArg) => any)
+        ? ((fieldArg: FieldArg) => any)
+        : never
+    );
+
+type InferCompileNodeFunction<G extends Graph<G>, NodeName extends keyof G['nodes']> =
+    GetNodeArgs<G, NodeName> extends never
+    ? () => Promise<{
+        fields: {
+            [FieldName in keyof G['nodes'][NodeName]['fields']]:
+            InferCompiledField<G['nodes'][NodeName]['fields'][FieldName]>
+        },
+        mutations: {
+            [FieldName in keyof G['nodes'][NodeName]['mutations']]: InferCompiledMutation<G['nodes'][NodeName]['mutations'][FieldName]>
+        }
+    }>
+    : (arg: GetNodeArgs<G, NodeName>) => Promise<{
+        fields: {
+            [FieldName in keyof G['nodes'][NodeName]['fields']]:
+            InferCompiledField<G['nodes'][NodeName]['fields'][FieldName]>
+        },
+        mutations: {
+            [FieldName in keyof G['nodes'][NodeName]['mutations']]: InferCompiledMutation<G['nodes'][NodeName]['mutations'][FieldName]>
+        }
+    }>;
+
+export type CompiledGraphInstance<G extends Graph<G>> = {
+    [NodeName in keyof G['nodes']]: InferCompileNodeFunction<G, NodeName>
+}
