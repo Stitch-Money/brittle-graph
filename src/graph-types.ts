@@ -1,11 +1,24 @@
 
-export type TransitionResult<ThisGraph extends Graph<ThisGraph>> = { type: 'transitioned' };
 
-export type MutationEffect<ThisGraph extends Graph<ThisGraph>> =
-    { type: 'transition' };
+export type TransitionResult<ThisGraph extends Graph<ThisGraph>> =
+    { type: 'transitioned', cost: number }
+    | { type: 'unexpectedly_transitioned', to: keyof ThisGraph['nodes'], cost?: number }
+    /** 
+     * If canRetry is true, it indicates that the transition may be attempted again, 
+     * however if false, the graph algorithm will to find another route to the target.
+     */
+    | { type: 'transition_failed', canRetry: boolean, message?: string, data?: any }
+    /**
+     * Indicates that this instance of the graph has entered a state that it cannot recover from.
+     * The only solution is to terminate this instance of the graph, and possibly try again later
+     */
+    | { type: 'graph_faulted', message?: string, data?: any };
+
+export type Mutation<ThisGraph extends Graph<ThisGraph>> =
+    { type: 'transition', to: keyof ThisGraph['nodes'] };
 
 export type MutationResult<ThisGraph extends Graph<ThisGraph>> =
-    { result?: any, effects?: Array<MutationEffect<ThisGraph>> };
+    { result?: any, effects?: Array<Mutation<ThisGraph>> };
 
 /* If you have multiple possible candidates for an inferred type, the compiler
 * can return either a union or an intersection depending on how those 
@@ -25,11 +38,14 @@ type UnionToIntersection<U> =
 export type Maybe<T> = T | null;
 
 export type Edge<ThisGraph extends Graph<ThisGraph>> =
-    (ctx: EdgeContext, arg: any) => TransitionResult<ThisGraph>
+    (ctx: EdgeContext<ThisGraph>, arg: any) => TransitionResult<ThisGraph>
 
 
-export type FieldContext = any;
-export type MutationContext = any;
+type InferGraphState<G extends Graph<G>> = G extends (arg: any) => { initialState: infer State } ? State : never;
+
+export type EdgeContext<G extends Graph<G>> = { currentState: InferGraphState<G> };
+export type FieldContext<G extends Graph<G>> = { currentState: InferGraphState<G> };
+export type MutationContext<G extends Graph<G>> = { currentState: InferGraphState<G> };
 
 type NodeEdges<
     ThisGraph extends Graph<ThisGraph>,
@@ -41,19 +57,18 @@ type NodeEdges<
 
 
 type Node<ThisGraph extends Graph<ThisGraph>, Self extends { edges?: any, mapAdjacentTemplatedNodeArgs?: any }, Name extends keyof ThisGraph['nodes']> = {
-    onEnter?: () => {},
-    onExit?: () => {},
-    assertions?: () => any[],
+    onEnter?: () => Promise<Array<Mutation<ThisGraph>>>,
+    onExit?: () => Promise<Array<Mutation<ThisGraph>>>,
+    assertions?: () => (any | Promise<any>)[],
     fields?: {
-        [fieldName: string]: (ctx: FieldContext, fieldArg: any) => any
+        [fieldName: string]: (ctx: FieldContext<ThisGraph>, fieldArg: any) => any
     },
     mutations?: {
-        [key: string]: (ctx: MutationContext, mutationArg: any) => Promise<MutationResult<ThisGraph>>
+        [key: string]: (ctx: MutationContext<ThisGraph>, mutationArg: any) => Promise<MutationResult<ThisGraph>>
     },
     edges?: NodeEdges<ThisGraph, Self>
 } & (GetNodeArgs<ThisGraph, Name> extends never ? {} : { mapAdjacentTemplatedNodeArgs: AdjacentTemplatedNodeArgMapping<ThisGraph, Name, Self> });
 
-type EdgeContext = any;
 
 type GetAdjacentNodeNames<ThisGraph extends Graph<ThisGraph>, TargetNodeName extends keyof ThisGraph['nodes']> = {
     [NodeName in keyof ThisGraph['nodes']]: ThisGraph['nodes'][NodeName] extends { edges: { [K in TargetNodeName]: any } } ? NodeName : never
@@ -111,14 +126,15 @@ export type GetNodeArgs<ThisGraph extends Graph<ThisGraph>, TargetNodeName exten
 
 
 export type Graph<Self extends Graph<Self>> = {
-    nodes: { [NodeName in keyof Self['nodes']]: Node<Self, Self['nodes'][NodeName], NodeName> }
+    nodes: { [NodeName in keyof Self['nodes']]: Node<Self, Self['nodes'][NodeName], NodeName> },
+    initializer: (arg: any) => Promise<{ currentNode: keyof (Self['nodes']), currentState: any }>
 };
 
-type InferCompiledField<T extends (ctx: FieldContext, fieldArg: any) => any> =
-    T extends (ctx: FieldContext) => infer ReturnType
+type InferCompiledField<T extends (ctx: any, fieldArg: any) => any> =
+    T extends (ctx: any) => infer ReturnType
     ? (() => ReturnType)
     : (
-        T extends ((ctx: FieldContext, fieldArg: infer FieldArg) => infer ReturnType)
+        T extends ((ctx: any, fieldArg: infer FieldArg) => infer ReturnType)
         ? ((fieldArg: FieldArg) => ReturnType)
         : never
     );
@@ -129,12 +145,12 @@ type InferMutationResult<T extends (ctx: any, mutationArg: any) => Promise<Mutat
     ? Result
     : void;
 
-type InferCompiledMutation<T extends (ctx: MutationContext, mutationArg: any) => Promise<MutationResult<any>>> =
-    T extends (ctx: FieldContext) => any
-    ? (() => InferMutationResult<T>)
+type InferCompiledMutation<T extends (ctx: any, mutationArg: any) => Promise<MutationResult<any>>> =
+    T extends (ctx: any) => any
+    ? (() => Promise<InferMutationResult<T>>)
     : (
-        T extends ((ctx: FieldContext, fieldArg: infer FieldArg) => any)
-        ? ((fieldArg: FieldArg) => any)
+        T extends ((ctx: any, fieldArg: infer FieldArg) => any)
+        ? ((fieldArg: FieldArg) => Promise<InferMutationResult<T>>)
         : never
     );
 
@@ -162,3 +178,4 @@ type InferCompileNodeFunction<G extends Graph<G>, NodeName extends keyof G['node
 export type CompiledGraphInstance<G extends Graph<G>> = {
     [NodeName in keyof G['nodes']]: InferCompileNodeFunction<G, NodeName>
 }
+
