@@ -1,9 +1,8 @@
 import { graph, compileGraph } from "./index";
 
-
 type GraphState = { count: number };
 
-const compiledGraph = compileGraph({
+const validatedGraph = graph({
     nodes: {
         INITIAL: {
             edges: {
@@ -18,7 +17,7 @@ const compiledGraph = compileGraph({
             },
             mapAdjacentTemplatedNodeArgs: {
                 CATS: (arg: string) => ({ name: 'eh', age: 0, height: 23, weight: 24 }),
-                FROG: (arg: string) => arg,
+                FROG: (arg: string) => arg
             }
         },
         CATS: {
@@ -46,14 +45,14 @@ const compiledGraph = compileGraph({
         }
     },
     initializer: async (arg: number) => ({ currentNode: 'INITIAL', currentState: { count: 0 } }),
-}, {} as any);
+});
 
 (async function f() {
-
-    const instanceOfGraph = await compiledGraph.createInstance(12);
-    instanceOfGraph.FROG('hello')
-    instanceOfGraph.INITIAL()
+    const instanceOfGraph = await compileGraph(validatedGraph, {} as any).createInstance(12);
+    await instanceOfGraph.FROG('hello')
+    await instanceOfGraph.INITIAL()
     let result = await instanceOfGraph.CATS({ name: 'string', age: 23, weight: 23, height: 48 });
     result.mutations.jump(1);
     result.mutations.jump2();
+    result.fields.paws(4);
 }())
