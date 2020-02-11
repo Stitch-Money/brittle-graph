@@ -3,20 +3,23 @@ import { graph, compileGraph } from "./index";
 
 type GraphState = { count: number };
 
-const typecheckedGraph = graph({
+const compiledGraph = compileGraph({
     nodes: {
         INITIAL: {
             edges: {
-                CATS: () => ({ type: 'transitioned', cost: 2 })
+                CATS: (ctx: any, arg: { name: string, age: number, height: number }) => ({ type: 'transitioned', cost: 2 })
             }
         },
         FROG: {
             edges: {
-                CATS: () => ({ type: 'transitioned', cost: 2 }),
-                FROG: (ctx: any, arg: { age: number, name: string }) => arg.age === 23 ? ({ type: 'transitioned', cost: 30 }) : ({ type: 'transitioned', cost: 1 }),
+                CATS: (ctx: any, arg: { name: string, age: number, weight: number }) => ({ type: 'transitioned', cost: 2 }),
+                FROG: (ctx: any, arg: string) => arg === 'henry' ? ({ type: 'transitioned', cost: 30 }) : ({ type: 'transitioned', cost: 1 }),
                 INITIAL: () => ({ type: 'transitioned', cost: 2 }),
             },
-            mapAdjacentTemplatedNodeArgs: {}
+            mapAdjacentTemplatedNodeArgs: {
+                CATS: (arg: string) => ({ name: 'eh', age: 0, height: 23, weight: 24 }),
+                FROG: (arg: string) => arg,
+            }
         },
         CATS: {
             fields: {
@@ -25,26 +28,32 @@ const typecheckedGraph = graph({
                 claws: () => 2,
             },
             mutations: {
-                jump: async () => ({ result: { value: 'six' }, effects: [{ type: 'transitioned', to: 'FROG' }] }),
+                jump: async (ctx: any, height: number) => ({ result: { value: 'six' }, effects: [{ type: 'transitioned', to: 'FROG' }] }),
                 jump2: async () => (({ effects: [] }))
             },
             mapAdjacentTemplatedNodeArgs: {
-                FROG: () => ({ name: 'eh', age: 0, height: 11 }),
+                FROG: (arg: {
+                    name: string;
+                    age: number;
+                    height: number;
+                    weight: number,
+                }) => 'henry',
             },
             edges: {
-                FROG: () => ({ type: 'transitioned', cost: 4 }),
-                INITIAL: () => ({ type: 'transitioned', cost: 3 })
+                FROG: (ctx: any, arg: string) => ({ type: 'transitioned', cost: 4 }),
+                INITIAL: (ctx: any) => ({ type: 'transitioned', cost: 3 })
             }
         }
     },
-    initializer: async () => ({ currentNode: 'INITIAL', currentState: { count: 0 } }),
-});
+    initializer: async (arg: number) => ({ currentNode: 'INITIAL', currentState: { count: 0 } }),
+}, {} as any);
 
 (async function f() {
-    const compiledGraph = compileGraph(graph(typecheckedGraph), {});
-    const instanceOfGraph = await compiledGraph.createInstance(10);
-    let result = await instanceOfGraph.CATS(4);
+
+    const instanceOfGraph = await compiledGraph.createInstance(12);
+    instanceOfGraph.FROG('hello')
+    instanceOfGraph.INITIAL()
+    let result = await instanceOfGraph.CATS({ name: 'string', age: 23, weight: 23, height: 48 });
     result.mutations.jump(1);
-
+    result.mutations.jump2();
 }())
-

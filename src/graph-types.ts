@@ -35,8 +35,12 @@ export type MutationResult<ThisGraph extends Graph<ThisGraph>> =
 * types
 */
 type UnionToIntersection<U> =
-    (U extends any ? (k: U) => void : never) extends
-    ((k: infer I) => void) ? I : never
+    ([U] extends [never] ? never :
+        (U extends any
+            ? ((k: U) => void)
+            : never
+        ) extends ((k: infer I) => void) ? I : never);
+
 
 export type Maybe<T> = T | null;
 
@@ -57,6 +61,8 @@ type NodeEdges<
     (keyof Node['edges']) extends keyof (ThisGraph["nodes"])
     ? { [NodeName in keyof ThisGraph['nodes']]?: Edge<ThisGraph> }
     : (("Edges connecting to inexistent nodes detected: " | Exclude<keyof (Node['edges']), keyof (ThisGraph['nodes'])>));
+
+
 
 
 type Node<ThisGraph extends Graph<ThisGraph>, Self extends { edges?: any, mapAdjacentTemplatedNodeArgs?: any }, Name extends keyof ThisGraph['nodes']> = {
@@ -87,13 +93,15 @@ type GetAdjacentTemplatedNodeNames<ThisGraph extends Graph<ThisGraph>, TargetNod
 type AdjacentTemplatedNodeArgMapping<
     ThisGraph extends Graph<ThisGraph>,
     TargetNodeName extends keyof ThisGraph['nodes'],
-    Node extends { mapAdjacentTemplatedNodeArgs?: any }
+    Node extends { mapAdjacentTemplatedNodeArgs?: any | never }
     > =
-    keyof Node['mapAdjacentTemplatedNodeArgs'] extends GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>
-    ? ({
-        [NodeName in GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>]?:
-        (arg: GetNodeArgs<ThisGraph, TargetNodeName>) => GetNodeArgs<ThisGraph, NodeName> })
-    : (("Non adjacent, templated nodes detected: " | Exclude<keyof (Node['mapAdjacentTemplatedNodeArgs']), (GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>)>));
+    ((keyof (Node['mapAdjacentTemplatedNodeArgs'])) extends GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>
+        ? ({
+            [NodeName in GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>]:
+            (arg: GetNodeArgs<ThisGraph, TargetNodeName>) => GetNodeArgs<ThisGraph, NodeName>
+        })
+        : (("Non adjacent, templated nodes detected: " | Exclude<keyof (Node['mapAdjacentTemplatedNodeArgs']), (GetAdjacentTemplatedNodeNames<ThisGraph, TargetNodeName>)>))
+    );
 
 
 /**
@@ -101,22 +109,21 @@ type AdjacentTemplatedNodeArgMapping<
  *  while (ctx: uknown, arg: infer Arg) => any is the least, which means it matches
  *  both (ctx) => any and () => any
  */
-type InferEdgeArgFromFunction<T extends () => any> =
-    T extends () => unknown
-    ? never
-    : (T extends (ctx: unknown) => any
+type InferEdgeArgFromFunction<T extends (ctx: any, arg: any) => any> =
+    (T extends (ctx: any) => any
         ? never
         : (
-            T extends (ctx: unknown, arg: infer Arg) => any
-            ? Arg :
-            never
+            T extends (ctx: any, arg: infer Arg) => any
+            ? Arg
+            : never
         )
     );
 
 type GetNodeArg<ThisGraph extends Graph<ThisGraph>, AdjacentNodeName extends keyof ThisGraph['nodes'], TargetNodeName extends keyof ThisGraph['nodes']> =
-    ThisGraph['nodes'][AdjacentNodeName]['edges'] extends { [K in TargetNodeName]: any }
+    ThisGraph['nodes'][AdjacentNodeName]['edges'] extends { [K in TargetNodeName]: (ctx: any, arg: any) => any }
     ? (InferEdgeArgFromFunction<ThisGraph['nodes'][AdjacentNodeName]['edges'][TargetNodeName]>)
     : never;
+
 
 
 

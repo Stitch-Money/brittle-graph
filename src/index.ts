@@ -8,10 +8,10 @@ export function graph<G extends Graph<G>>(graph: G): G {
 }
 
 
-type InferInitializationArg<G extends Graph<G>> =
-    G['initializer'] extends (arg: infer Arg) => any
-    ? Arg
-    : never;
+type InferInitializer<G extends Graph<G>> =
+    G['initializer'] extends () => any
+    ? () => Promise<CompiledGraphInstance<G>>
+    : (G['initializer'] extends (arg: infer Arg) => any ? (arg: Arg) => Promise<CompiledGraphInstance<G>> : never);
 
 type InferCompiledField<T extends (ctx: any, fieldArg: any) => any> =
     T extends (ctx: any) => infer ReturnType
@@ -68,18 +68,16 @@ export type CompiledGraphInstance<G extends Graph<G>> = {
 
 export type GraphInstanceIdentifier = string & { __graphInstance__: void };
 
-export interface CompiledGraph<G extends Graph<G>, A extends GraphAlgorithm<G>> {
-    createInstance:
-    InferInitializationArg<G> extends never
-    ? () => Promise<CompiledGraphInstance<G>> : (arg: InferInitializationArg<G>) => Promise<CompiledGraphInstance<G>>;
+export interface CompiledGraph<G extends Graph<G>, A extends GraphAlgorithm<G, A>> {
+    createInstance: InferInitializer<G>;
 
 }
 
-class CompiledGraphImpl<G extends Graph<G>, A extends GraphAlgorithm<G>> implements CompiledGraph<G, A> {
-    createInstance: InferInitializationArg<G> extends never ? () => Promise<CompiledGraphInstance<G>> : (arg: InferInitializationArg<G>) => Promise<CompiledGraphInstance<G>>;
+class CompiledGraphImpl<G extends Graph<G>, A extends GraphAlgorithm<G, A>> implements CompiledGraph<G, A> {
+    createInstance: InferInitializer<G>;
 
     constructor(graph: G, algorithm: A) {
-        this.createInstance = ((arg?: InferInitializationArg<G>) => {
+        this.createInstance = ((arg?: InferInitializer<G>) => {
             if (arg) {
 
             } else {
@@ -90,6 +88,6 @@ class CompiledGraphImpl<G extends Graph<G>, A extends GraphAlgorithm<G>> impleme
 
 }
 
-export function compileGraph<G extends Graph<G>, A extends GraphAlgorithm<G>>(graph: G, algorithm: A): CompiledGraph<G, A> {
+export function compileGraph<G extends Graph<G>, A extends GraphAlgorithm<G, A>>(graph: G, algorithm: A): CompiledGraph<G, A> {
     return new CompiledGraphImpl(graph, algorithm);
 }

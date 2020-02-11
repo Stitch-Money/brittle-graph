@@ -3,17 +3,17 @@ import { Graph } from "./graph-types";
 type Parameters = any;
 type Digest = any;
 
-export type GraphAlgorithm<G extends Graph<G>> = {
+export type GraphAlgorithm<G extends Graph<G>, GraphAlgorithmState> = {
     initialParameters: (graph: G) => Parameters,
     // applyDigest: (prevParameters: Parameters, digest: Digest) => Parameters
 
-    // beginNavigation: (navArgs: {
-    //     graph: UnweightedGraphRepresention,
-    //     graphState: GraphState,
-    //     algorithmState: GraphAlgorithmState,
-    //     targetNode: Node,
-    //     targetNodeArg?: any
-    // }) => GraphAlgorithmState;
+    beginNavigation: (navArgs: {
+        graph: G,
+        // graphState: InferGraphState<G>,
+        algorithmState: GraphAlgorithmState,
+        targetNode: Node,
+        targetNodeArg?: any
+    }) => GraphAlgorithmState;
 
     // choseNextEdge: (navArgs: {
     //     graph: UnweightedGraphRepresention,
