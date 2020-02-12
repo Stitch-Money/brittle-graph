@@ -53,7 +53,7 @@ export interface GraphAlgorithmInstance<G extends Graph<G>> {
         edges: NavigableEdges<G>
     }): void;
 
-    endNavigation(result: NavigationResult<G, unknown>): void;
+    endNavigation(result: GraphNavigationResult<G, unknown>): void;
 }
 
 export type GraphAlgorithm<G extends Graph<G>> = {

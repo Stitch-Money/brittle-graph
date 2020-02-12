@@ -1,16 +1,16 @@
 export type TransitionResult<ThisGraph extends Graph<ThisGraph>> =
-    { type: 'transitioned', cost: number }
-    | { type: 'unexpectedly_transitioned', to: keyof ThisGraph['nodes'], cost?: number }
+    { type: 'transitioned', cost: number, nextState?: InferGraphState<ThisGraph> }
+    | { type: 'unexpectedly_transitioned', to: keyof ThisGraph['nodes'], cost?: number, nextState?: InferGraphState<ThisGraph> }
     /** 
      * If canRetry is true, it indicates that the transition may be attempted again, 
      * however if false, the graph algorithm will to find another route to the target.
      */
-    | { type: 'transition_failed', canRetry: boolean, message?: string, data?: any }
+    | { type: 'transition_failed', canRetryEdge: boolean, message?: string, data?: any, nextState?: InferGraphState<ThisGraph> }
     /**
      * Indicates that this instance of the graph has entered a state that it cannot recover from.
      * The only solution is to terminate this instance of the graph, and possibly try again later
      */
-    | { type: 'graph_faulted', message?: string, data?: any };
+    | { type: 'graph_faulted', message?: string, data?: any, nextState?: InferGraphState<ThisGraph> };
 
 export type Mutation<ThisGraph extends Graph<ThisGraph>> =
     { type: 'transitioned', to: keyof ThisGraph['nodes'] }
@@ -45,7 +45,7 @@ type UnionToIntersection<U> =
 export type Maybe<T> = T | null;
 
 export type Edge<ThisGraph extends Graph<ThisGraph>> =
-    (ctx: EdgeContext<ThisGraph>, arg: any) => TransitionResult<ThisGraph>;
+    (ctx: EdgeContext<ThisGraph>, arg: any) => TransitionResult<ThisGraph> | Promise<TransitionResult<ThisGraph>>;
 
 type InferGraphState<G extends Graph<G>> = G extends (arg: any) => { initialState: infer State } ? State : never;
 
@@ -62,8 +62,8 @@ type NodeEdges<
     : (("Edges connecting to inexistent nodes detected: " | Exclude<keyof (Node['edges']), keyof (ThisGraph['nodes'])>));
 
 type Node<ThisGraph extends Graph<ThisGraph>, Self extends { edges?: any, mapAdjacentTemplatedNodeArgs?: any }, Name extends keyof ThisGraph['nodes']> = {
-    onEnter?: () => Promise<Array<Mutation<ThisGraph>>>,
-    onExit?: () => Promise<Array<Mutation<ThisGraph>>>,
+    onEnter?: (ctx: MutationContext<ThisGraph>) => Promise<Array<Mutation<ThisGraph>>>,
+    onExit?: (ctx: MutationContext<ThisGraph>) => Promise<Array<Mutation<ThisGraph> & { type: Omit<Mutation<ThisGraph>['type'], 'transitioned'> }>>,
     assertions?: () => (any | Promise<any>)[],
     fields?: {
         [fieldName: string]: (ctx: FieldContext<ThisGraph>, fieldArg: any) => any

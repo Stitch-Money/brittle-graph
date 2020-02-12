@@ -216,29 +216,40 @@ class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>>
                 const currentNode = this.graph.nodes[this.currentNodeName];
                 assert(currentNode);
                 assert(currentNode.edges && currentNode.edges[nextEdge as keyof G['nodes'][any]['edges']]);
-                const currentEdge = (currentNode.edges[nextEdge as keyof G['nodes'][any]['edges']]) as ((ctx: EdgeContext<G>, arg?: any) => Promise<TransitionResult<G>>);
+                const currentEdge = (currentNode.edges[nextEdge as keyof G['nodes'][any]['edges']]) as ((ctx: EdgeContext<G>, arg?: any) => Promise<TransitionResult<G>> | TransitionResult<G>);
                 assert(currentEdge);
                 const currentEdgeInfo = (edges[this.currentNodeName][nextEdge as keyof G['nodes'][any]['edges']]);
                 assert(currentEdgeInfo && currentEdgeInfo.navigable);
                 const arg = currentEdgeInfo.arg;
 
                 try {
-                    const transitionResult = await currentEdge({ currentState: this.state }, arg);
+                    const exitMutations = await this.graph.nodes[this.currentNodeName].onExit({ currentState: this.state });
+
+                    const transitionResult = await Promise.resolve(currentEdge({ currentState: this.state }, arg));
                     // First understand what the transition did to the state of the system
+
+                    // Update state iff necessary
+                    if (transitionResult.nextState) {
+                        this.state = transitionResult.nextState;
+                    }
+
                     switch (transitionResult.type) {
                         case 'transitioned':
+                            this.currentNodeName = nextEdge as keyof G['nodes'];
                             break;
                         case 'unexpectedly_transitioned':
+                            this.currentNodeName = transitionResult.to;
                             break;
                         case 'graph_faulted':
                             break;
                         case 'transition_failed':
+
                             break;
                         default:
                             throwIfNotNever(transitionResult);
                     }
                     // Then tell algorithm about it
-                    this.algorithmInstance.postEdgeTransitionAttempt({ currentNode: this.currentNodeName, targetNode, transitionResult });
+                    this.algorithmInstance.postEdgeTransitionAttempt({ currentNode: this.currentNodeName, targetNode, transitionResult: { type: transitionResult.type } });
 
                     // Finally make a decision about what to do next
                     switch (transitionResult.type) {
