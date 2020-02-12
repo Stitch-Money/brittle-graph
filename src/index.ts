@@ -1,5 +1,5 @@
-import { Graph, MutationResult, GetNodeArgs } from "./graph-types";
-import { GraphAlgorithm, GraphAlgorithmInstance } from "./algorithm-types";
+import { Graph, MutationResult, GetNodeArgs, EdgeContext, TransitionResult, Maybe } from "./graph-types";
+import { GraphAlgorithm, GraphAlgorithmInstance, GraphNavigationResult } from "./algorithm-types";
 import Queue from 'denque';
 
 export function graph<G extends Graph<G>>(graph: G): G & { __typechecked__: void } {
@@ -35,8 +35,7 @@ type InferCompiledMutation<T extends (ctx: any, mutationArg: any) => Promise<Mut
     );
 
 export type NavigationResult<G extends Graph<G>, NodeName extends keyof G['nodes']> =
-    | {
-        type: 'successful',
+    GraphNavigationResult<G, {
         fields: {
             [FieldName in keyof G['nodes'][NodeName]['fields']]:
             InferCompiledField<G['nodes'][NodeName]['fields'][FieldName]>
@@ -44,12 +43,7 @@ export type NavigationResult<G extends Graph<G>, NodeName extends keyof G['nodes
         mutations: {
             [FieldName in keyof G['nodes'][NodeName]['mutations']]: InferCompiledMutation<G['nodes'][NodeName]['mutations'][FieldName]>
         }
-    }
-    | {
-        type: 'unreachable'
-    } | {
-        type: 'cancelled'
-    };
+    }>;
 
 type InferCompileNodeFunction<G extends Graph<G>, NodeName extends keyof G['nodes']> =
     GetNodeArgs<G, NodeName> extends never
@@ -94,6 +88,7 @@ class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>>
     algorithmInstance: GraphAlgorithmInstance<G>;
     graph: G;
     episode: number;
+    currentEpisode: Promise<any> = null;
     fieldProxyHandler = {
         get: (target: { [key: string]: (ctx: any, arg: any) => any }, prop: keyof G['nodes'][any]['fields']) => {
 
@@ -115,22 +110,18 @@ class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>>
         this.id = id;
         this.algorithmInstance = alg;
         this.episode = 0;
-
-        // This function initializes the edge navigabilitity by checking the arity of the edge functions
+        this.currentEpisode = Promise.resolve();
     }
 
-    private createNodeProxy(nodeName: keyof G['nodes']): CompiledGraphInstanceProps<G>['currentNode'] {
-        return new Proxy({ name: nodeName }, {}) as CompiledGraphInstanceProps<G>['currentNode'];
-        // const currentNode = this.graph.nodes[nodeName];
-        // return {
-        //     name: this.currentNodeName,
-        //     fields: (currentNode.fields ? new Proxy(currentNode.fields, this.fieldProxyHandler) : {}) as CompiledGraphInstanceProps<G>['currentNode']['fields'],
-        //     mutations: (currentNode.mutations ? new Proxy(currentNode.mutations, this.mutationProxyHandler) : {}) as CompiledGraphInstanceProps<G>['currentNode']['mutations']
-        // };
-    }
+
 
     get currentNode(): CompiledGraphInstanceProps<G>['currentNode'] {
-        return this.createNodeProxy(this.currentNodeName);
+        const currentNode = this.graph.nodes[this.currentNodeName];
+        return {
+            name: this.currentNodeName,
+            fields: (currentNode.fields ? new Proxy(currentNode.fields, this.fieldProxyHandler) : {}) as CompiledGraphInstanceProps<G>['currentNode']['fields'],
+            mutations: (currentNode.mutations ? new Proxy(currentNode.mutations, this.mutationProxyHandler) : {}) as CompiledGraphInstanceProps<G>['currentNode']['mutations']
+        };
     }
 
     getNavigableEdges(targetNodeName: keyof G['nodes'], arg: any) {
@@ -191,22 +182,110 @@ class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>>
     }
 
 
-    async goto(targetNode: keyof G['nodes'], arg: any) {
+    async goto<TargetNode extends keyof G['nodes']>(targetNode: TargetNode, arg: any) {
+        // First increase the episode number. This will cancel outstanding episodes
         const episode = ++this.episode;
         const edges = this.getNavigableEdges(targetNode, arg);
+        const f = () => new Promise(async (resolve) => {
+            let result: Maybe<NavigationResult<G, TargetNode>> = null;
 
-        return new Promise((resolve, reject) => {
-            // begin navigation
-            (this.algorithmInstance.beginNavigation as ((arg: any) => void))({ currentNode: this.currentNode.name, targetNode, targetNodeArg: arg });
-            let isNavigating = false;
-            while (isNavigating) { // Allow for cancellation
-                if (episode !== this.episode) {
-                    resolve({ type: 'cancelled' });
-                    return;
-                }
+            // Have to check for cancellation before even starting navigation,
+            // as a new navigation may have been queued before this one even 
+            // started
+            if (this.episode !== episode) {
+                resolve({ type: 'cancelled' });
+                return;
             }
-            resolve(new Proxy({}, {}));
+            this.algorithmInstance.beginNavigation({ currentNode: this.currentNodeName, targetNode, edges });
+            navigationLoop: for (; ;) {
+                const nextEdge = this.algorithmInstance.chooseNextEdge({ currentNode: this.currentNodeName, targetNode, edges })
+                if (nextEdge === null) {
+                    result = { type: 'unreachable' };
+                    break navigationLoop;
+                }
+                if (episode !== this.episode) {
+                    // Episodes allow for cancellation
+                    result = { type: 'cancelled' };
+                    break navigationLoop;
+                }
+
+                // BEGIN ATOMIC SECTION
+                // This section should be uninterruptable. An edge transition 
+                // must either complete or fail, before a new navigation request
+                // is allowed.
+                const currentNode = this.graph.nodes[this.currentNodeName];
+                assert(currentNode);
+                assert(currentNode.edges && currentNode.edges[nextEdge as keyof G['nodes'][any]['edges']]);
+                const currentEdge = (currentNode.edges[nextEdge as keyof G['nodes'][any]['edges']]) as ((ctx: EdgeContext<G>, arg?: any) => Promise<TransitionResult<G>>);
+                assert(currentEdge);
+                const currentEdgeInfo = (edges[this.currentNodeName][nextEdge as keyof G['nodes'][any]['edges']]);
+                assert(currentEdgeInfo && currentEdgeInfo.navigable);
+                const arg = currentEdgeInfo.arg;
+
+                try {
+                    const transitionResult = await currentEdge({ currentState: this.state }, arg);
+                    // First understand what the transition did to the state of the system
+                    switch (transitionResult.type) {
+                        case 'transitioned':
+                            break;
+                        case 'unexpectedly_transitioned':
+                            break;
+                        case 'graph_faulted':
+                            break;
+                        case 'transition_failed':
+                            break;
+                        default:
+                            throwIfNotNever(transitionResult);
+                    }
+                    // Then tell algorithm about it
+                    this.algorithmInstance.postEdgeTransitionAttempt({ currentNode: this.currentNodeName, targetNode, transitionResult });
+
+                    // Finally make a decision about what to do next
+                    switch (transitionResult.type) {
+                        case 'transitioned': {
+                            if (nextEdge === targetNode) {
+                                // We got to the correct node. Need to wrap the node in a proxy to ensure that if we navigate away from the node that it 
+                                // throws an appropriate error.
+                                result = { type: 'successful', fields: {}, mutations: {} } as ({
+                                    type: 'successful',
+                                    fields: {
+                                        [FieldName in keyof G['nodes'][TargetNode]['fields']]:
+                                        InferCompiledField<G['nodes'][TargetNode]['fields'][FieldName]>
+                                    },
+                                    mutations: {
+                                        [FieldName in keyof G['nodes'][TargetNode]['mutations']]: InferCompiledMutation<G['nodes'][TargetNode]['mutations'][FieldName]>
+                                    }
+                                });
+                                break navigationLoop;
+                            }
+                            break;
+                        }
+                        case 'unexpectedly_transitioned': {
+                            break;
+                        }
+                        case 'graph_faulted': {
+                            result = { type: 'error', data: transitionResult.data, message: transitionResult.message };
+                            break navigationLoop;
+                        }
+                        case 'transition_failed': {
+                            break;
+                        }
+                        default:
+                            throwIfNotNever(transitionResult);
+                    }
+                } catch (e) {
+                    result = { type: 'error', data: e };
+                    break;
+                }
+                // END ATOMIC SECTION
+            }
+            assert(result);
+            this.algorithmInstance.endNavigation(result);
+            resolve(result);
         });
+
+
+        this.currentEpisode = this.currentEpisode.then(() => f);
     }
 }
 
@@ -214,6 +293,10 @@ function assert(x: any): asserts x {
     if (!x) {
         throw new Error('Expected value to be truthy. Internal error');
     }
+}
+
+function throwIfNotNever(x: never): never {
+    throw new Error(`Expected ${x} to be never`);
 }
 
 function guidGenerator(): GraphInstanceIdentifier {
