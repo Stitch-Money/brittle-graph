@@ -52,7 +52,9 @@ const validatedGraph = graph({
     await instanceOfGraph.FROG('hello')
     await instanceOfGraph.INITIAL()
     let result = await instanceOfGraph.CATS({ name: 'string', age: 23, weight: 23, height: 48 });
-    result.mutations.jump(1);
-    result.mutations.jump2();
-    result.fields.paws(4);
+    if (result.type === 'successful') {
+        result.mutations.jump(1);
+        result.mutations.jump2();
+        result.fields.paws(4);
+    }
 }())
