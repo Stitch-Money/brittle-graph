@@ -33,25 +33,34 @@ class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
 
         let currentNode = startNode;
         queue.push(currentNode);
+        console.log(JSON.stringify(edges));
 
         do {
             currentNode = queue.shift();
+            console.log('OPENING NODE', currentNode);
             for (const edge of this.getReachableEdges(currentNode, edges)) {
+                console.log('EXPLORING EDGE', currentNode, 'TO', edge);
                 if (!backlinks[edge]) {
                     queue.push(edge);
-                    backlinks[edge] = startNode;
+                    backlinks[edge] = currentNode;
                 }
             }
-        } while (!queue.isEmpty() && currentNode !== targetNode);
+        } while (!queue.isEmpty());
 
         if (backlinks[targetNode]) {
+            console.log('has backlinks');
             currentNode = targetNode;
-            do {
+            for (; ;) {
                 const backlink: (keyof G['nodes']) | true | undefined = backlinks[currentNode];
-                assert(backlink && backlink !== true);
+                if (backlink === true) {
+                    return;
+                }
+                assert(backlink);
                 this.path.unshift(backlink);
                 currentNode = backlink;
-            } while (currentNode != startNode);
+            }
+        } else {
+            console.log('no backlinks');
         }
     }
 
@@ -59,8 +68,8 @@ class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
         this.doRoute(navArgs.edges, navArgs.currentNode, navArgs.targetNode);
     }
 
-    chooseNextEdge<CurrentNode extends keyof G["nodes"], TargetNode extends keyof G["nodes"]>(navArgs: { currentNode: CurrentNode; targetNode: TargetNode; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; }): keyof G["nodes"][CurrentNode]["edges"] {
-        return this.path.peekFront() as keyof G["nodes"][CurrentNode]["edges"];
+    chooseNextEdge<CurrentNode extends keyof G["nodes"], TargetNode extends keyof G["nodes"]>(navArgs: { currentNode: CurrentNode; targetNode: TargetNode; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; }): (keyof G["nodes"][CurrentNode]["edges"] | null) {
+        return (this.path.peekFront() ?? null) as (keyof G["nodes"][CurrentNode]["edges"] | null);
     }
 
     postEdgeTransitionAttempt<CurrentNode extends keyof G["nodes"], PrevNode extends keyof G["nodes"], TargetNode extends keyof G["nodes"]>(navArgs: { currentNode: CurrentNode; previousNode: PrevNode; targetNode: TargetNode; transitionResult: import("../graph-types").TransitionResult<G>; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; }): void {

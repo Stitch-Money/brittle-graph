@@ -83,7 +83,6 @@ type GraphNode<Context, Nodes extends GraphNodes<Context, Nodes>, Node extends G
     }
 };
 
-type GraphNodeTemplate<Arg, Context, Nodes extends GraphNodes<Context, Nodes>, Node extends GraphNode<Context, Nodes, Node>> = (arg: Arg) => GraphNode<Context, Nodes, Node>;
 
 export type EdgeWeights<Nodes extends GraphNodes<any, Nodes>> = {
     [From in keyof Nodes]: {

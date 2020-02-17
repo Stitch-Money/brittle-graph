@@ -7,7 +7,8 @@
     "tsc": "tsc",
     "test-only": "jest",
     "test": "jest --coverage --coverageReporters=text-lcov | coveralls",
-    "watch": "jest --watch --coverage"
+    "watch": "jest --watch --coverage",
+    "node-dev": "ts-node-dev --respawn ./src/test-values.ts"
   },
   "author": "Nick Cuthbert",
   "license": "MIT",
@@ -19,7 +20,7 @@
     "coveralls": "^3.0.9",
     "jest": "^25.1.0",
     "ts-jest": "^25.0.0",
-    "ts-node-dev": "^1.0.0-pre.43",
+    "ts-node-dev": "^1.0.0-pre.44",
     "typescript": "^3.7.2"
   }
 }

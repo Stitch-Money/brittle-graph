@@ -1,60 +1,65 @@
-// import { graph, compileGraph } from "./index";
+import { graph, compileGraph } from "./index";
+import { Bfs } from "./reference-algorithms/bfs";
 
-// type GraphState = { count: number };
+type GraphState = { count: number };
 
-// const validatedGraph = graph({
-//     nodes: {
-//         INITIAL: {
-//             edges: {
-//                 CATS: (ctx: any, arg: { name: string, age: number, height: number }) => ({ type: 'transitioned', cost: 2 })
-//             }
-//         },
-//         FROG: {
-//             edges: {
-//                 CATS: (ctx: any, arg: { name: string, age: number, weight: number }) => ({ type: 'transitioned', cost: 2 }),
-//                 FROG: (ctx: any, arg: string) => arg === 'henry' ? ({ type: 'transitioned', cost: 30 }) : ({ type: 'transitioned', cost: 1 }),
-//                 INITIAL: () => ({ type: 'transitioned', cost: 2 }),
-//             },
-//             mapAdjacentTemplatedNodeArgs: {
-//                 CATS: (arg: string) => ({ name: 'eh', age: 0, height: 23, weight: 24 }),
-//                 FROG: (arg: string) => arg
-//             }
-//         },
-//         CATS: {
-//             fields: {
-//                 paws: (_ctx: any, arg: number) => arg * 4,
-//                 feets: (_ctx: any) => 4,
-//                 claws: () => 2,
-//             },
-//             mutations: {
-//                 jump: async (ctx: any, height: number) => ({ result: { value: 'six' }, effects: [{ type: 'transitioned', to: 'FROG' }] }),
-//                 jump2: async () => (({ effects: [] }))
-//             },
-//             mapAdjacentTemplatedNodeArgs: {
-//                 FROG: (arg: {
-//                     name: string;
-//                     age: number;
-//                     height: number;
-//                     weight: number,
-//                 }) => 'henry',
-//             },
-//             edges: {
-//                 FROG: (ctx: any, arg: string) => ({ type: 'transitioned', cost: 4 }),
-//                 INITIAL: (ctx: any) => ({ type: 'transitioned', cost: 3 })
-//             }
-//         }
-//     },
-//     initializer: async (arg: number) => ({ currentNode: 'INITIAL', currentState: { count: 0 } }),
-// });
+const validatedGraph = graph({
+    nodes: {
+        INITIAL: {
+            edges: {
+                CATS: (ctx: any, arg: { name: string, age: number, height: number }) => ({ type: 'transitioned', cost: 2 })
+            }
+        },
+        FROG: {
+            edges: {
+                CATS: (ctx: any, arg: { name: string, age: number, weight: number }) => ({ type: 'transitioned', cost: 2 }),
+                FROG: (ctx: any, arg: string) => arg === 'henry' ? ({ type: 'transitioned', cost: 30 }) : ({ type: 'transitioned', cost: 1 }),
+                INITIAL: () => ({ type: 'transitioned', cost: 2 }),
+            },
+            mapAdjacentTemplatedNodeArgs: {
+                CATS: (arg: string) => ({ name: 'eh', age: 0, height: 23, weight: 24 }),
+                FROG: (arg: string) => arg
+            }
+        },
+        CATS: {
+            fields: {
+                paws: (_ctx: any, arg: number) => arg * 4,
+                feets: (_ctx: any) => 4,
+                claws: () => 2,
+            },
+            mutations: {
+                jump: async (ctx: any, height: number) => ({ result: { value: 'six' }, effects: [{ type: 'transitioned', to: 'FROG' }] }),
+                jump2: async () => (({ effects: [] }))
+            },
+            mapAdjacentTemplatedNodeArgs: {
+                FROG: (arg: {
+                    name: string;
+                    age: number;
+                    height: number;
+                    weight: number,
+                }) => 'henry',
+            },
+            edges: {
+                FROG: (ctx: any, arg: string) => ({ type: 'transitioned', cost: 4 }),
+                INITIAL: (ctx: any) => ({ type: 'transitioned', cost: 3 })
+            }
+        }
+    },
+    initializer: async (arg: number) => ({ currentNode: 'INITIAL', currentState: { count: 0 } }),
+});
 
-// (async function f() {
-//     const instanceOfGraph = await compileGraph(validatedGraph, {} as any).createInstance(12);
-//     await instanceOfGraph.FROG('hello')
-//     await instanceOfGraph.INITIAL()
-//     let result = await instanceOfGraph.CATS({ name: 'string', age: 23, weight: 23, height: 48 });
-//     if (result.type === 'successful') {
-//         result.mutations.jump(1);
-//         result.mutations.jump2();
-//         result.fields.paws(4);
-//     }
-// }())
+(async function f() {
+    const instanceOfGraph = await ((compileGraph(validatedGraph, new Bfs<any>())).createInstance(12));
+    console.log('CURRENT NODE', instanceOfGraph.currentNode.name);
+    const transitionResult = await instanceOfGraph.FROG('hello')
+    console.log(transitionResult);
+    console.log('CURRENT NODE', instanceOfGraph.currentNode.name);
+    // await instanceOfGraph.INITIAL()
+    // let result = await instanceOfGraph.CATS({ name: 'string', age: 23, weight: 23, height: 48 });
+    // console.log(result);
+    // if (result.type === 'successful') {
+    //     result.mutations.jump(1);
+    //     result.mutations.jump2();
+    //     result.fields.paws(4);
+
+}())
