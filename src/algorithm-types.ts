@@ -1,6 +1,6 @@
-import { Graph, Maybe, GetNodeArgs, TransitionResult } from "./graph-types";
+import { Graph, Maybe, TransitionResult } from "./graph-types";
 
-type NavigableEdges<G extends Graph<G>> = { [Node in keyof G['nodes']]: { [E in keyof G['nodes'][Node]['edges']]: { navigable: boolean } } };
+export type NavigableEdges<G extends Graph<G>> = { [Node in keyof G['nodes']]: { [E in keyof G['nodes'][Node]['edges']]: { navigable: boolean } } };
 
 export type GraphNavigationResult<G extends Graph<G>, SuccessType> =
     | ({

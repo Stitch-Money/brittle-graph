@@ -80,7 +80,7 @@ type NavigableEdges<G extends Graph<G>> = {
     [N in keyof G['nodes']]: { [E in keyof G['nodes'][N]['edges']]: NavigableEdge }
 };
 
-class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>> implements CompiledGraphInstanceProps<G> {
+class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInstanceProps<G> {
     currentNodeName: keyof G['nodes'];
 
     faulted: boolean = false;
@@ -409,7 +409,7 @@ class CompiledGraphImpl<G extends Graph<G>, A extends GraphAlgorithm<G>> impleme
     constructor(graph: G, algorithm: A) {
         const nodeNames: (keyof G['nodes'])[] = Object.keys(graph.nodes) as (keyof G['nodes'])[];
         const proxyHandler = {
-            get: function (target: CompiledGraphInstanceImpl<G, A>, prop: keyof G['nodes']) {
+            get: function (target: CompiledGraphInstanceImpl<G>, prop: keyof G['nodes']) {
                 assert(nodeNames.includes(prop));
                 return (args: any) => target.goto(prop, args);
             }
