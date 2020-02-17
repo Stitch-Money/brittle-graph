@@ -52,6 +52,7 @@ type InferGraphState<G extends Graph<G>> = G extends (arg: any) => { initialStat
 export type EdgeContext<G extends Graph<G>> = { currentState: InferGraphState<G> };
 export type FieldContext<G extends Graph<G>> = { currentState: InferGraphState<G> };
 export type MutationContext<G extends Graph<G>> = { currentState: InferGraphState<G> };
+export type AssertionContext<G extends Graph<G>> = { currentState: InferGraphState<G> };
 
 type NodeEdges<
     ThisGraph extends Graph<ThisGraph>,
@@ -64,7 +65,7 @@ type NodeEdges<
 type Node<ThisGraph extends Graph<ThisGraph>, Self extends { edges?: any, mapAdjacentTemplatedNodeArgs?: any }, Name extends keyof ThisGraph['nodes']> = {
     onEnter?: (ctx: MutationContext<ThisGraph>) => Promise<Array<Mutation<ThisGraph>>>,
     onExit?: (ctx: MutationContext<ThisGraph>) => Promise<Array<Mutation<ThisGraph> & { type: Omit<Mutation<ThisGraph>['type'], 'transitioned'> }>>,
-    assertions?: () => (any | Promise<any>)[],
+    assertions?: (ctx: AssertionContext<ThisGraph>) => (any | Promise<any>)[],
     fields?: {
         [fieldName: string]: (ctx: FieldContext<ThisGraph>, fieldArg: any) => any
     },

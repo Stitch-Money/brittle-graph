@@ -1,4 +1,4 @@
-import { Graph, MutationResult, GetNodeArgs, EdgeContext, TransitionResult, Maybe } from "./graph-types";
+import { Graph, MutationResult, GetNodeArgs, EdgeContext, TransitionResult, Maybe, Mutation } from "./graph-types";
 import { GraphAlgorithm, GraphAlgorithmInstance, GraphNavigationResult } from "./algorithm-types";
 import Queue from 'denque';
 
@@ -83,12 +83,13 @@ type NavigableEdges<G extends Graph<G>> = {
 class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>> implements CompiledGraphInstanceProps<G> {
     currentNodeName: keyof G['nodes'];
 
+    faulted: boolean = false;
     id: GraphInstanceIdentifier;
     state: any;
     algorithmInstance: GraphAlgorithmInstance<G>;
     graph: G;
     episode: number;
-    currentEpisode: Promise<any> = null;
+    currentEpisode: Promise<any>;
     fieldProxyHandler = {
         get: (target: { [key: string]: (ctx: any, arg: any) => any }, prop: keyof G['nodes'][any]['fields']) => {
 
@@ -181,6 +182,51 @@ class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>>
         return edges;
     }
 
+    applyMutations(mutations: Array<Mutation<G>>) {
+        for (const mutation of mutations) {
+            ;
+            switch (mutation.type) {
+                case 'graph_faulted':
+
+                    break;
+                case 'transitioned':
+                    this.currentNodeName = mutation.to;
+                    break;
+                case 'update_state':
+                    this.state = mutation.newState;
+                    break;
+                default:
+                    throwIfNotNever(mutation);
+            }
+        }
+    }
+
+    async onExit(nodeName: keyof G['nodes']) {
+        const thisNode = this.graph.nodes[nodeName];
+        const exitMutations = await (thisNode.onExit?.({ currentState: this.state }) ?? Promise.resolve([]));
+        this.applyMutations(exitMutations);
+
+    }
+
+    async onEnter(nodeName: keyof G['nodes']) {
+        const thisNode = this.graph.nodes[nodeName];
+        const enterMutations = await (thisNode.onEnter?.({ currentState: this.state }) ?? Promise.resolve([]));
+        this.applyMutations(enterMutations);
+
+        const assertionCtx = { currentState: this.state };
+        const assertions = thisNode.assertions?.({ currentState: this.state }) ?? [];
+        try {
+            await Promise.all(assertions.map(x => x(assertionCtx)));
+        } catch (e) {
+            console.error(e);
+            this.faulted = true;
+        }
+    }
+
+    createNodeProxy<Node extends {}>(nodeName: keyof G['nodes'], value: Node): Node {
+        return new Proxy(value, {});
+    }
+
 
     async goto<TargetNode extends keyof G['nodes']>(targetNode: TargetNode, arg: any) {
         // First increase the episode number. This will cancel outstanding episodes
@@ -196,34 +242,52 @@ class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>>
                 resolve({ type: 'cancelled' });
                 return;
             }
+            if (this.faulted) {
+                // Another episode may have triggered a fault in the graph
+                resolve({ type: 'faulted' });
+                return;
+            }
+
             this.algorithmInstance.beginNavigation({ currentNode: this.currentNodeName, targetNode, edges });
             navigationLoop: for (; ;) {
-                const nextEdge = this.algorithmInstance.chooseNextEdge({ currentNode: this.currentNodeName, targetNode, edges })
-                if (nextEdge === null) {
-                    result = { type: 'unreachable' };
-                    break navigationLoop;
-                }
                 if (episode !== this.episode) {
                     // Episodes allow for cancellation
                     result = { type: 'cancelled' };
                     break navigationLoop;
                 }
+                // We shouldn't be in faulted state as checks in the loop body 
+                // below should catch the faults before it loops back around
+                assert(!this.faulted);
 
+                const nextEdge = this.algorithmInstance.chooseNextEdge({ currentNode: this.currentNodeName, targetNode, edges })
+                if (nextEdge === null) {
+                    result = { type: 'unreachable' };
+                    break navigationLoop;
+                }
                 // BEGIN ATOMIC SECTION
                 // This section should be uninterruptable. An edge transition 
                 // must either complete or fail, before a new navigation request
                 // is allowed.
-                const currentNode = this.graph.nodes[this.currentNodeName];
-                assert(currentNode);
-                assert(currentNode.edges && currentNode.edges[nextEdge as keyof G['nodes'][any]['edges']]);
-                const currentEdge = (currentNode.edges[nextEdge as keyof G['nodes'][any]['edges']]) as ((ctx: EdgeContext<G>, arg?: any) => Promise<TransitionResult<G>> | TransitionResult<G>);
+                const prevNode = this.graph.nodes[this.currentNodeName];
+                const previousNodeName = this.currentNodeName;
+                assert(prevNode);
+                assert(prevNode.edges && prevNode.edges[nextEdge as keyof G['nodes'][any]['edges']]);
+                const currentEdge = (prevNode.edges[nextEdge as keyof G['nodes'][any]['edges']]) as ((ctx: EdgeContext<G>, arg?: any) => Promise<TransitionResult<G>> | TransitionResult<G>);
                 assert(currentEdge);
                 const currentEdgeInfo = (edges[this.currentNodeName][nextEdge as keyof G['nodes'][any]['edges']]);
                 assert(currentEdgeInfo && currentEdgeInfo.navigable);
                 const arg = currentEdgeInfo.arg;
 
+
                 try {
-                    const exitMutations = await this.graph.nodes[this.currentNodeName].onExit({ currentState: this.state });
+                    await this.onExit(previousNodeName);
+
+                    // Exit Mutations can cause graph to enter faulted state
+                    if (this.faulted) {
+                        // Episodes allow for cancellation
+                        result = { type: 'graph_faulted' };
+                        break navigationLoop;
+                    }
 
                     const transitionResult = await Promise.resolve(currentEdge({ currentState: this.state }, arg));
                     // First understand what the transition did to the state of the system
@@ -236,20 +300,31 @@ class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>>
                     switch (transitionResult.type) {
                         case 'transitioned':
                             this.currentNodeName = nextEdge as keyof G['nodes'];
+                            await this.onEnter(this.currentNodeName);
                             break;
                         case 'unexpectedly_transitioned':
                             this.currentNodeName = transitionResult.to;
+                            await this.onEnter(this.currentNodeName);
                             break;
                         case 'graph_faulted':
-                            break;
+                            this.faulted = true;
+                            result = { type: 'graph_faulted' };
+                            break navigationLoop;
                         case 'transition_failed':
-
+                            // re-enter current node
+                            await this.onEnter(this.currentNodeName);
                             break;
                         default:
                             throwIfNotNever(transitionResult);
                     }
                     // Then tell algorithm about it
-                    this.algorithmInstance.postEdgeTransitionAttempt({ currentNode: this.currentNodeName, targetNode, transitionResult: { type: transitionResult.type } });
+                    this.algorithmInstance.postEdgeTransitionAttempt({ currentNode: this.currentNodeName, previousNode: previousNodeName, targetNode, transitionResult, edges });
+
+                    // Enter mutations can cause graph to enter faulted state
+                    if (this.faulted) {
+                        result = { type: 'graph_faulted' };
+                        break navigationLoop;
+                    }
 
                     // Finally make a decision about what to do next
                     switch (transitionResult.type) {
@@ -257,7 +332,7 @@ class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>>
                             if (nextEdge === targetNode) {
                                 // We got to the correct node. Need to wrap the node in a proxy to ensure that if we navigate away from the node that it 
                                 // throws an appropriate error.
-                                result = { type: 'successful', fields: {}, mutations: {} } as ({
+                                result = this.createNodeProxy(targetNode, { type: 'successful', fields: {}, mutations: {} } as ({
                                     type: 'successful',
                                     fields: {
                                         [FieldName in keyof G['nodes'][TargetNode]['fields']]:
@@ -266,19 +341,25 @@ class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>>
                                     mutations: {
                                         [FieldName in keyof G['nodes'][TargetNode]['mutations']]: InferCompiledMutation<G['nodes'][TargetNode]['mutations'][FieldName]>
                                     }
-                                });
+                                }));
                                 break navigationLoop;
+                            } else {
+                                ; // Continue with loop
                             }
                             break;
                         }
                         case 'unexpectedly_transitioned': {
+                            // Something strange happenened, and now we're in another state
                             break;
                         }
-                        case 'graph_faulted': {
-                            result = { type: 'error', data: transitionResult.data, message: transitionResult.message };
-                            break navigationLoop;
-                        }
                         case 'transition_failed': {
+                            // Transition didn't work
+                            if (!transitionResult.canRetryEdge) {
+                                // Can't retry, so will need to add the edge to the black list.
+                                edges[this.currentNodeName][nextEdge].navigable = false;
+                            } else {
+                                ; // if we're allowed to try again, continue loop as normal
+                            }
                             break;
                         }
                         default:
@@ -291,7 +372,12 @@ class CompiledGraphInstanceImpl<G extends Graph<G>, A extends GraphAlgorithm<G>>
                 // END ATOMIC SECTION
             }
             assert(result);
-            this.algorithmInstance.endNavigation(result);
+            this.algorithmInstance.endNavigation({
+                result,
+                currentNode: this.faulted ? undefined : this.currentNodeName,
+                edges,
+                targetNode
+            });
             resolve(result);
         });
 

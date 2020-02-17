@@ -24,6 +24,10 @@ export type GraphNavigationResult<G extends Graph<G>, SuccessType> =
         message?: string,
         data?: any
     }
+    /** Graph has entered the faulted state and cannot recover. */
+    | {
+        type: 'graph_faulted',
+    }
     /** Successfully navigated to this node some time in the past, 
      *  however a subsequent navigation request has been made, 
      *  which means this node should not have been accessed     
@@ -53,7 +57,9 @@ export interface GraphAlgorithmInstance<G extends Graph<G>> {
         edges: NavigableEdges<G>
     }): void;
 
-    endNavigation(result: GraphNavigationResult<G, unknown>): void;
+    endNavigation<TargetNode extends keyof G['nodes'], CurrentNode extends keyof G['nodes']>(
+        args: { result: GraphNavigationResult<G, unknown>, edges: NavigableEdges<G>, targetNode: TargetNode, currentNode?: CurrentNode }
+    ): void;
 }
 
 export type GraphAlgorithm<G extends Graph<G>> = {
