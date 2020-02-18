@@ -219,7 +219,7 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
             ;
             switch (mutation.type) {
                 case 'graph_faulted':
-
+                    this.faulted = true;
                     break;
                 case 'transitioned':
                     this.currentNodeName = mutation.to;
