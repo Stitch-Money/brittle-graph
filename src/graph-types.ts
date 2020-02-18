@@ -130,5 +130,5 @@ export type GetNodeArgs<ThisGraph extends Graph<ThisGraph>, TargetNodeName exten
 
 export type Graph<Self extends Graph<Self>> = {
     nodes: { [NodeName in keyof Self['nodes']]: Node<Self, Self['nodes'][NodeName], NodeName> },
-    initializer: (arg: any) => Promise<{ currentNode: keyof (Self['nodes']), currentState: unknown }>
+    initializer: (arg: any) => Promise<{ currentNode: keyof (Self['nodes']), currentState: any }>
 };
