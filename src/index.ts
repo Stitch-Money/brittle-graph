@@ -156,6 +156,7 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
             const edgeNavigabilitity: { [key: string]: { navigable: boolean } } = {};
             for (const edgeName in node.edges) {
                 const edgeF = node.edges[edgeName] as () => any;
+                console.log('EVALUATING', nodeName, 'to', edgeName, edgeF.length);
                 edgeNavigabilitity[edgeName] = { navigable: edgeF.length <= 1 };
             }
             (edges[nodeName] as { [key: string]: { navigable: boolean } }) = edgeNavigabilitity;
@@ -165,7 +166,8 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
         // enforces input of given arg
         for (const nodeName in this.graph.nodes) {
             const node = this.graph.nodes[nodeName];
-            if (node.edges && (node.edges as { [_ in keyof G['nodes']]: any })[targetNodeName]) {
+            if (node.edges && !!(node.edges as { [_ in keyof G['nodes']]: any })[targetNodeName]) {
+                console.log('Node', nodeName, 'is directly navigable to', targetNodeName);
                 (edges[nodeName])[targetNodeName as keyof G['nodes'][any]['edges']] = { navigable: true, arg };
             }
         }
@@ -180,19 +182,28 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
         const visited = new Set<keyof G['nodes']>();
         while (!queue.isEmpty()) {
             const next = queue.pop()!;
+            const nextNode = next.node;
             visited.add(next.name);
             const nextArg = next.arg;
+            const mappings = nextNode.mapAdjacentTemplatedNodeArgs;
 
             // If this node does not have mappings, skip
-            if (!next.node.mapAdjacentTemplatedNodeArgs) {
+            if (!mappings) {
                 continue;
             }
 
-            const mappings = next.node.mapAdjacentTemplatedNodeArgs;
+
             for (const edgeKey in mappings) {
-                // Add to queue if node hasn't been visited
                 const mappedArg = mappings[edgeKey]!(nextArg);
-                (edges[edgeKey])[next.name as keyof G['nodes'][any]['edges']] = { navigable: true, arg: mappedArg };
+                // Need to get all adjacent edges to edge key, THESE edges are now navigable, not the edge itself
+                for (const nodeName in this.graph.nodes) {
+                    const edgeKeyAsEdge = (edgeKey as keyof G['nodes'][any]['edges']);
+                    if (this.graph.nodes[nodeName].edges?.[edgeKeyAsEdge]) {
+                        edges[nodeName][edgeKeyAsEdge] = { navigable: true, arg: mappedArg };
+                    }
+                }
+
+                // Add to queue if node hasn't been visited
                 if (!visited.has(edgeKey)) {
                     queue.push({ name: edgeKey, node: this.graph['nodes'][edgeKey] as { mapAdjacentTemplatedNodeArgs?: { [K in keyof G['nodes']]?: (arg: any) => any } }, arg: mappedArg })
                 }
@@ -281,6 +292,8 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
                 assert(!this.faulted);
 
                 const nextEdge = this.algorithmInstance.chooseNextEdge({ currentNode: this.currentNodeName, targetNode, edges })
+                console.log('Current Node', this.currentNodeName);
+                console.log('Next Edge', nextEdge);
                 if (nextEdge === null) {
                     result = { type: 'unreachable' };
                     break navigationLoop;

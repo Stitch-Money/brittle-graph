@@ -2,23 +2,28 @@
   "name": "brittle-graph",
   "version": "1.0.0",
   "description": "A library for efficiently traversing graphs with brittle, failure prone edges",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "tsc": "tsc",
     "test-only": "jest",
     "test": "jest --coverage --coverageReporters=text-lcov | coveralls",
     "watch": "jest --watch --coverage",
-    "node-dev": "ts-node-dev --respawn ./src/test-values.ts"
+    "node-dev": "ts-node-dev --respawn ./src/test-values.ts",
+    "install-peers": "npm-install-peers"
   },
   "author": "Nick Cuthbert",
   "license": "MIT",
-  "dependencies": {
-    "denque": "^1.4.1"
+  "peerDependencies": {
+    "denque": "^1.4.1",
+    "tinyqueue": "^2.0.3"
   },
   "devDependencies": {
     "@types/jest": "^24.9.1",
     "coveralls": "^3.0.9",
     "jest": "^25.1.0",
+    "npm-install-peers": "^1.2.1",
     "ts-jest": "^25.0.0",
     "ts-node-dev": "^1.0.0-pre.44",
     "typescript": "^3.7.2"

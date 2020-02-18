@@ -1,5 +1,5 @@
-import { graph, compileGraph } from "./index";
-import { Bfs } from "./reference-algorithms/bfs";
+import { graph, compileGraph } from "../src/index";
+import { Bfs } from "../reference-algorithms/bfs";
 
 type GraphState = { count: number };
 
@@ -19,7 +19,10 @@ const validatedGraph = graph({
             mapAdjacentTemplatedNodeArgs: {
                 CATS: (arg: string) => ({ name: 'eh', age: 0, height: 23, weight: 24 }),
                 FROG: (arg: string) => arg
-            }
+            },
+            fields: {
+                jumpHeight: (_ctx: any, arg: number) => arg * 10,
+            },
         },
         CATS: {
             fields: {
@@ -51,9 +54,13 @@ const validatedGraph = graph({
 (async function f() {
     const instanceOfGraph = await ((compileGraph(validatedGraph, new Bfs<any>())).createInstance(12));
     console.log('CURRENT NODE', instanceOfGraph.currentNode.name);
-    const transitionResult = await instanceOfGraph.FROG('hello')
+    const transitionResult = await instanceOfGraph.FROG('hello');
     console.log(transitionResult);
     console.log('CURRENT NODE', instanceOfGraph.currentNode.name);
+    if (transitionResult.type === 'successful') {
+        console.log('JUMP HEIGHT', transitionResult.fields.jumpHeight(100));
+    }
+
     // await instanceOfGraph.INITIAL()
     // let result = await instanceOfGraph.CATS({ name: 'string', age: 23, weight: 23, height: 48 });
     // console.log(result);

@@ -17,11 +17,13 @@
     "target": "es6"
   },
   "include": [
-    "src"
+    "src",
+    "examples",
+    "__tests__",
+    "reference-algorithms"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "old"
   ]
 }
