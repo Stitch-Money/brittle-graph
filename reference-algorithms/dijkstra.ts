@@ -1,6 +1,8 @@
 import { GraphAlgorithm, GraphAlgorithmInstance, NavigableEdges } from "../src/algorithm-types";
 import { Graph } from "../src/graph-types";
+import PriorityQueue from 'tinyqueue';
 import Queue from 'denque';
+import { getReachableEdges, followBacklinks } from "./common";
 
 
 function assert(x: any): asserts x {
@@ -18,53 +20,40 @@ class DijkstraInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> 
         this.edgeWeights = edgeWeights;
     }
 
-    * getReachableEdges(currentNode: keyof G['nodes'], edges: NavigableEdges<G>): Iterable<(keyof G['nodes'])> {
-        const theseEdges: Record<keyof G['nodes'][any]['edges'], { navigable: boolean }> = edges[currentNode];
-        for (const edge in theseEdges) {
-            if (theseEdges[edge].navigable) {
-                yield (edge as unknown as keyof G['nodes']);
-            }
-        }
-    }
-
     doRoute(edges: NavigableEdges<G>, startNode: keyof G['nodes'], targetNode: keyof G['nodes']) {
         this.path.clear();
-        const queue = new Queue();
+        const queue = new PriorityQueue<{ cost: number, node: keyof G['nodes'] }>([], function (a, b) {
+            return a.cost - b.cost;
+        });
 
         const backlinks: { [_ in (keyof G['nodes'])]?: true | (keyof G['nodes']) } = {};
         backlinks[startNode] = true;
 
-        let currentNode = startNode;
-        queue.push(currentNode);
+        const costs: { [_ in (keyof G['nodes'])]?: number } = {};
+        const visited: Set<keyof G['nodes']> = new Set();
 
-        do {
-            currentNode = queue.shift();
-            for (const edge of this.getReachableEdges(currentNode, edges)) {
-                if (!backlinks[edge]) {
-                    queue.push(edge);
+        let currentNode = startNode;
+        queue.push({ cost: 0, node: currentNode });
+
+        while (!queue.peek() != null && currentNode !== targetNode) {
+            let { node: currentNode, cost } = queue.pop()!;
+            visited.add(currentNode);
+            for (const edge of getReachableEdges(currentNode, edges)) {
+                let tentativeCost = cost;
+                tentativeCost += this.edgeWeights[currentNode][edge as keyof G['nodes'][any]['edges']];
+                const prevCost = costs[edge] ?? Infinity;
+                const currentCost = prevCost > tentativeCost ? tentativeCost : prevCost;
+                if (prevCost > tentativeCost) {
+                    costs[edge] = currentCost;
                     backlinks[edge] = currentNode;
                 }
-            }
-        } while (!queue.isEmpty() && currentNode !== targetNode);
-
-
-        if (backlinks[targetNode]) {
-            currentNode = targetNode;
-            this.path.unshift(targetNode);
-            while (true) {
-                const backlink: (keyof G['nodes']) | true | undefined = backlinks[currentNode];
-                assert(backlink);
-                if (backlink !== true) {
-                    this.path.unshift(backlink);
-                    currentNode = backlink;
-                } else {
-                    break;
+                if (!visited.has(edge)) {
+                    queue.push({ cost: currentCost, node: edge });
                 }
             }
-            this.path.shift();
-        } else {
-            ;  // no path
-        }
+        };
+
+        followBacklinks(this.path, backlinks, targetNode);
     }
 
     beginNavigation<CurrentNode extends keyof G["nodes"], TargetNode extends keyof G["nodes"]>(navArgs: { currentNode: CurrentNode; targetNode: TargetNode; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; }): void {
@@ -103,6 +92,15 @@ export class Dijkstra<G extends Graph<G>> implements GraphAlgorithm<G> {
     edgeWeights: { [Node in keyof G['nodes']]: { [Edge in keyof G['nodes'][Node]['edges']]: number } };
     constructor(edgeWeights: { [Node in keyof G['nodes']]: { [Edge in keyof G['nodes'][Node]['edges']]: number } }) {
         this.edgeWeights = edgeWeights;
+        for (const nodeName in this.edgeWeights) {
+            for (const edgeName in this.edgeWeights[nodeName]) {
+                if (this.edgeWeights[nodeName][edgeName] < 0) {
+                    throw new Error(
+                        `Edge linking ${nodeName} to ${edgeName} cannot take on a value of less than zero 
+                    when using Dijkstra's algorithm as this will result in an infinite loop`)
+                }
+            }
+        }
     }
 
     createInstance(graph: G): GraphAlgorithmInstance<G> {

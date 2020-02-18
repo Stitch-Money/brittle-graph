@@ -6,7 +6,7 @@ export function graph<G extends Graph<G>>(graph: G): G & { __typechecked__: void
     return graph as G & { __typechecked__: void };
 }
 
-type InferInitializer<G extends Graph<G>, A extends GraphAlgorithm<G>> =
+type InferInitializer<G extends Graph<G>, _ extends GraphAlgorithm<G>> =
     G['initializer'] extends () => any
     ? () => Promise<CompiledGraphInstance<G>>
     : (G['initializer'] extends (arg: infer Arg) => any ? (arg: Arg) => Promise<CompiledGraphInstance<G>> : never);

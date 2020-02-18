@@ -1,6 +1,7 @@
 import { GraphAlgorithm, GraphAlgorithmInstance, NavigableEdges } from "../src/algorithm-types";
 import { Graph } from "../src/graph-types";
 import Queue from 'denque';
+import { getReachableEdges, followBacklinks } from "./common";
 
 
 function assert(x: any): asserts x {
@@ -12,16 +13,6 @@ function assert(x: any): asserts x {
 
 class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
     path: Queue<keyof G["nodes"]> = new Queue<keyof G["nodes"]>();
-    constructor() { }
-
-    * getReachableEdges(currentNode: keyof G['nodes'], edges: NavigableEdges<G>): Iterable<(keyof G['nodes'])> {
-        const theseEdges: Record<keyof G['nodes'][any]['edges'], { navigable: boolean }> = edges[currentNode];
-        for (const edge in theseEdges) {
-            if (theseEdges[edge].navigable) {
-                yield (edge as unknown as keyof G['nodes']);
-            }
-        }
-    }
 
     doRoute(edges: NavigableEdges<G>, startNode: keyof G['nodes'], targetNode: keyof G['nodes']) {
         this.path.clear();
@@ -35,7 +26,7 @@ class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
 
         do {
             currentNode = queue.shift();
-            for (const edge of this.getReachableEdges(currentNode, edges)) {
+            for (const edge of getReachableEdges(currentNode, edges)) {
                 if (!backlinks[edge]) {
                     queue.push(edge);
                     backlinks[edge] = currentNode;
@@ -43,24 +34,7 @@ class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
             }
         } while (!queue.isEmpty() && currentNode !== targetNode);
 
-
-        if (backlinks[targetNode]) {
-            currentNode = targetNode;
-            this.path.unshift(targetNode);
-            while (true) {
-                const backlink: (keyof G['nodes']) | true | undefined = backlinks[currentNode];
-                assert(backlink);
-                if (backlink !== true) {
-                    this.path.unshift(backlink);
-                    currentNode = backlink;
-                } else {
-                    break;
-                }
-            }
-            this.path.shift();
-        } else {
-            ;  // no path
-        }
+        followBacklinks(this.path, backlinks, targetNode);
     }
 
     beginNavigation<CurrentNode extends keyof G["nodes"], TargetNode extends keyof G["nodes"]>(navArgs: { currentNode: CurrentNode; targetNode: TargetNode; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; }): void {
