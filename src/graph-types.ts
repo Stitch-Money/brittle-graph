@@ -47,8 +47,8 @@ export type Maybe<T> = T | null;
 export type Edge<ThisGraph extends Graph<ThisGraph>> =
     (ctx: EdgeContext<ThisGraph>, arg: any) => TransitionResult<ThisGraph> | Promise<TransitionResult<ThisGraph>>;
 
-type InferGraphState<G extends Graph<G>> =
-    G['initializer'] extends (arg: any) => Promise<{ currentNode: infer State, currentState: any }>
+type InferGraphState<G extends Graph<any>> =
+    G['initializer'] extends (arg: any) => Promise<{ currentState: infer State }>
     ? State
     : never;
 
@@ -130,5 +130,5 @@ export type GetNodeArgs<ThisGraph extends Graph<ThisGraph>, TargetNodeName exten
 
 export type Graph<Self extends Graph<Self>> = {
     nodes: { [NodeName in keyof Self['nodes']]: Node<Self, Self['nodes'][NodeName], NodeName> },
-    initializer: (arg: any) => Promise<{ currentNode: keyof (Self['nodes']), currentState: any }>
+    initializer: (arg: any) => Promise<{ currentNode: keyof (Self['nodes']), currentState: unknown }>
 };

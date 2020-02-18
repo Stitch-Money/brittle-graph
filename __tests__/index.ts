@@ -27,7 +27,7 @@ const kiaansHouse = graph({
 
             },
             fields: {
-                describe: () =>
+                describe: (ctx: { currentState: GraphState }) =>
                     `The study is rather cluttered, with a large writing desk in the corner.
                      Atop the desk is a grey crystal box.`
             }
