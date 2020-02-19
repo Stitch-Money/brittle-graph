@@ -127,10 +127,16 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
     }
 
     get currentNode(): CompiledGraphInstanceProps<G>['currentNode'] {
+        if (this.faulted) {
+            throw new Error('Graph faulted');
+        }
         const currentNode = this.graph.nodes[this.currentNodeName];
         const currentNodeName = this.currentNodeName;
         const currentNodeHandler = {
             get: (obj: any, prop: string) => {
+                if (this.faulted) {
+                    throw new Error('Graph faulted');
+                }
                 if (this.currentNodeName !== currentNodeName) {
                     throw new Error(`Attempted to access Node "${currentNodeName}" but currently at Node "${this.currentNodeName}"`);
                 } else {
@@ -138,7 +144,6 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
                 }
             }
         };
-
         return new Proxy({
             name: this.currentNodeName,
             fields: currentNode.fields ? new Proxy(currentNode.fields, this.fieldProxy as ProxyHandler<any>) : {},
@@ -253,11 +258,11 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
         this.applyMutations(enterMutations);
 
         const assertionCtx = { currentState: this.state };
-        const assertions = thisNode.assertions?.({ currentState: this.state }) ?? [];
+        const assertions = thisNode.assertions ?? [];
         try {
-            await Promise.all(assertions.map(x => x(assertionCtx)));
+            await Promise.all(assertions.map(x => Promise.resolve(x(assertionCtx))))
         } catch (e) {
-            console.error(e);
+            console.error('Graph faulted', e);
             this.faulted = true;
         }
     }
@@ -312,7 +317,6 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
 
             // If has no node arg, can shortcut as already in correct place
             if (targetNode === this.currentNodeName && !this.hasNodeArg(targetNode)) {
-                console.log('already at correct node', targetNode);
                 resolve(this.createSuccessNodeProxy(targetNode, episode));
                 return;
             }

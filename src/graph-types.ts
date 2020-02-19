@@ -68,7 +68,7 @@ type NodeEdges<
 type Node<ThisGraph extends Graph<ThisGraph>, Self extends { edges?: any, mapAdjacentTemplatedNodeArgs?: any }, Name extends keyof ThisGraph['nodes']> = {
     onEnter?: (ctx: MutationContext<ThisGraph>) => Promise<Array<Mutation<ThisGraph>>>,
     onExit?: (ctx: MutationContext<ThisGraph>) => Promise<Array<Mutation<ThisGraph> & { type: Omit<Mutation<ThisGraph>['type'], 'transitioned'> }>>,
-    assertions?: (ctx: AssertionContext<ThisGraph>) => (any | Promise<any>)[],
+    assertions?: ((ctx: AssertionContext<ThisGraph>) => (any | Promise<any>))[],
     fields?: {
         [fieldName: string]: (ctx: FieldContext<ThisGraph>, fieldArg: any) => any
     },

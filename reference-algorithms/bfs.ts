@@ -65,7 +65,6 @@ class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
     endNavigation<TargetNode extends keyof G["nodes"], CurrentNode extends keyof G["nodes"]>(_args: { result: import("../src/algorithm-types").GraphNavigationResult<G, unknown>; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; targetNode: TargetNode; currentNode?: CurrentNode | undefined; }): void {
         this.path.clear();
     }
-
 }
 
 export class Bfs<G extends Graph<G>> implements GraphAlgorithm<G> {
