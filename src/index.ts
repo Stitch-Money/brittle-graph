@@ -146,6 +146,17 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
         }, currentNodeHandler) as CompiledGraphInstanceProps<G>['currentNode'];
     }
 
+    hasNodeArg(nodeName: keyof G['nodes']) {
+        const node = this.graph.nodes[nodeName];
+        for (const otherNodeName in this.graph.nodes) {
+            const otherNode = this.graph.nodes[otherNodeName];
+            if ((otherNode.edges?.[nodeName as any as keyof G['nodes'][any]['edges']] as any)?.length > 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     getNavigableEdges(targetNodeName: keyof G['nodes'], arg: any) {
         const edges = {} as NavigableEdges<G>;
         const target = this.graph.nodes[targetNodeName];
@@ -156,7 +167,6 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
             const edgeNavigabilitity: { [key: string]: { navigable: boolean } } = {};
             for (const edgeName in node.edges) {
                 const edgeF = node.edges[edgeName] as () => any;
-                console.log('EVALUATING', nodeName, 'to', edgeName, edgeF.length);
                 edgeNavigabilitity[edgeName] = { navigable: edgeF.length <= 1 };
             }
             (edges[nodeName] as { [key: string]: { navigable: boolean } }) = edgeNavigabilitity;
@@ -167,7 +177,6 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
         for (const nodeName in this.graph.nodes) {
             const node = this.graph.nodes[nodeName];
             if (node.edges && !!(node.edges as { [_ in keyof G['nodes']]: any })[targetNodeName]) {
-                console.log('Node', nodeName, 'is directly navigable to', targetNodeName);
                 (edges[nodeName])[targetNodeName as keyof G['nodes'][any]['edges']] = { navigable: true, arg };
             }
         }
@@ -216,7 +225,6 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
 
     applyMutations(mutations: Array<Mutation<G>>) {
         for (const mutation of mutations) {
-            ;
             switch (mutation.type) {
                 case 'graph_faulted':
                     this.faulted = true;
@@ -237,7 +245,6 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
         const thisNode = this.graph.nodes[nodeName];
         const exitMutations = await (thisNode.onExit?.({ currentState: this.state }) ?? Promise.resolve([]));
         this.applyMutations(exitMutations);
-
     }
 
     async onEnter(nodeName: keyof G['nodes']) {
@@ -255,7 +262,30 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
         }
     }
 
+    private createSuccessNodeProxy<TargetNode extends keyof G['nodes']>(targetNode: TargetNode, episode: number) {
+        const node = this.graph.nodes[targetNode];
 
+        const resultProxyHandler = {
+            get: (obj: NavigationResult<G, TargetNode>, prop: keyof NavigationResult<G, TargetNode>) => {
+                if (this.faulted) {
+                    return ({ type: 'graph_faulted' } as any)[prop];
+                }
+                else if (this.currentNodeName !== targetNode || this.episode !== episode) {
+                    return (({ type: 'expired' }) as any)[prop];
+                } else {
+                    return obj[prop];
+                }
+            }
+        };
+
+        const resultProxy = new Proxy({
+            type: 'successful',
+            fields: node.fields ? new Proxy(node.fields, this.fieldProxy as ProxyHandler<any>) : {},
+            mutations: node.mutations ? new Proxy(node.mutations, this.mutationProxy as ProxyHandler<any>) : {}
+        } as NavigationResult<G, TargetNode>, resultProxyHandler);
+
+        return resultProxy;
+    }
 
 
     async goto<TargetNode extends keyof G['nodes']>(targetNode: TargetNode, arg: any) {
@@ -264,7 +294,6 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
         const episode = ++this.episode;
         const edges = this.getNavigableEdges(targetNode, arg);
         const f = () => new Promise(async (resolve) => {
-            console.log('RUNNING PROMISE');
             let result: Maybe<NavigationResult<G, TargetNode>> = null;
 
             // Have to check for cancellation before even starting navigation,
@@ -274,9 +303,17 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
                 resolve({ type: 'cancelled' });
                 return;
             }
+
             if (this.faulted) {
                 // Another episode may have triggered a fault in the graph
                 resolve({ type: 'faulted' });
+                return;
+            }
+
+            // If has no node arg, can shortcut as already in correct place
+            if (targetNode === this.currentNodeName && !this.hasNodeArg(targetNode)) {
+                console.log('already at correct node', targetNode);
+                resolve(this.createSuccessNodeProxy(targetNode, episode));
                 return;
             }
 
@@ -292,8 +329,6 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
                 assert(!this.faulted);
 
                 const nextEdge = this.algorithmInstance.chooseNextEdge({ currentNode: this.currentNodeName, targetNode, edges })
-                console.log('Current Node', this.currentNodeName);
-                console.log('Next Edge', nextEdge);
                 if (nextEdge === null) {
                     result = { type: 'unreachable' };
                     break navigationLoop;
@@ -366,30 +401,7 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
                             if (nextEdge === targetNode) {
                                 // We got to the correct node. Need to wrap the node in a proxy to ensure that if we navigate away from the node that it 
                                 // throws an appropriate error.
-
-                                const node = this.graph.nodes[targetNode];
-
-
-
-                                const resultProxyHandler = {
-                                    get: (obj: NavigationResult<G, TargetNode>, prop: keyof NavigationResult<G, TargetNode>) => {
-                                        if (this.faulted) {
-                                            return ({ type: 'graph_faulted' } as any)[prop];
-                                        }
-                                        else if (this.currentNodeName !== targetNode || this.episode !== episode) {
-                                            return (({ type: 'expired' }) as any)[prop];
-                                        } else {
-                                            return obj[prop];
-                                        }
-                                    }
-                                };
-
-                                const resultProxy = new Proxy({
-                                    type: 'successful',
-                                    fields: node.fields ? new Proxy(node.fields, this.fieldProxy as ProxyHandler<any>) : {},
-                                    mutations: node.mutations ? new Proxy(node.mutations, this.mutationProxy as ProxyHandler<any>) : {}
-                                } as NavigationResult<G, TargetNode>, resultProxyHandler);
-                                result = resultProxy;
+                                result = this.createSuccessNodeProxy(targetNode, episode);
                                 break navigationLoop;
                             } else {
                                 ; // Continue with loop
@@ -459,12 +471,9 @@ class CompiledGraphImpl<G extends Graph<G>, A extends GraphAlgorithm<G>> impleme
         const nodeNames: (keyof G['nodes'])[] = Object.keys(graph.nodes) as (keyof G['nodes'])[];
         const proxyHandler = {
             get: function (target: CompiledGraphInstanceImpl<G>, prop: string | number | symbol) {
-                console.log('PROP', prop);
                 if (nodeNames.includes(prop as keyof G['nodes'])) {
-                    console.log('INCLUDED');
                     return (args: any) => target.goto(prop as keyof G['nodes'], args);
                 } else if (target) {
-                    console.log('NOT INCLUDED');
                     return (target as any)[prop];
                 } else {
                     return undefined;
@@ -481,7 +490,6 @@ class CompiledGraphImpl<G extends Graph<G>, A extends GraphAlgorithm<G>> impleme
             ) as unknown as CompiledGraphInstance<G>;
         }) as InferInitializer<G, A>;
     }
-
 }
 
 export function compileGraph<G extends Graph<G>, A extends GraphAlgorithm<G>>(graph: G & { __typechecked__: void }, algorithm: A): CompiledGraph<G, A> {

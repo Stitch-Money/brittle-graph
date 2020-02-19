@@ -18,8 +18,7 @@ class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
         this.path.clear();
         const queue = new Queue();
 
-        const backlinks: { [_ in (keyof G['nodes'])]?: true | (keyof G['nodes']) } = {};
-        backlinks[startNode] = true;
+        const backlinks: { [_ in (keyof G['nodes'])]?: (keyof G['nodes']) } = {};
 
         let currentNode = startNode;
         queue.push(currentNode);
@@ -32,9 +31,9 @@ class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
                     backlinks[edge] = currentNode;
                 }
             }
-        } while (!queue.isEmpty() && currentNode !== targetNode);
+        } while (!queue.isEmpty());
 
-        followBacklinks(this.path, backlinks, targetNode);
+        followBacklinks(this.path, backlinks, targetNode, startNode);
     }
 
     beginNavigation<CurrentNode extends keyof G["nodes"], TargetNode extends keyof G["nodes"]>(navArgs: { currentNode: CurrentNode; targetNode: TargetNode; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; }): void {

@@ -26,8 +26,7 @@ class DijkstraInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> 
             return a.cost - b.cost;
         });
 
-        const backlinks: { [_ in (keyof G['nodes'])]?: true | (keyof G['nodes']) } = {};
-        backlinks[startNode] = true;
+        const backlinks: { [_ in (keyof G['nodes'])]?: (keyof G['nodes']) } = {};
 
         const costs: { [_ in (keyof G['nodes'])]?: number } = {};
         const visited: Set<keyof G['nodes']> = new Set();
@@ -35,7 +34,7 @@ class DijkstraInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> 
         let currentNode = startNode;
         queue.push({ cost: 0, node: currentNode });
 
-        while (!queue.peek() != null && currentNode !== targetNode) {
+        while (!queue.peek() != null) {
             let { node: currentNode, cost } = queue.pop()!;
             visited.add(currentNode);
             for (const edge of getReachableEdges(currentNode, edges)) {
@@ -53,7 +52,7 @@ class DijkstraInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> 
             }
         };
 
-        followBacklinks(this.path, backlinks, targetNode);
+        followBacklinks(this.path, backlinks, targetNode, startNode);
     }
 
     beginNavigation<CurrentNode extends keyof G["nodes"], TargetNode extends keyof G["nodes"]>(navArgs: { currentNode: CurrentNode; targetNode: TargetNode; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; }): void {
