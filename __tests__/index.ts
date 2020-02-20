@@ -87,6 +87,11 @@ const kiaansHouse = graph({
                 Bathroom: () => ({ type: 'transitioned', cost: 1 }),
                 Study: () => ({ type: 'transitioned', cost: 1 }),
                 Hallway: (_ctx: {}, _arg: string) => ({ type: 'transitioned', cost: 1 }),
+            },
+            mutations: {
+                openCupboard: async () => {
+                    return { effects: [{ type: 'transitioned', to: 'MagicIsland' }] };
+                }
             }
         },
         Lounge: {
@@ -307,6 +312,16 @@ describe('Graph Engine', () => {
         const r1 = await graphInstance.Kitchen();
         expect(r1.type).toBe('graph_faulted');
         expect(() => graphInstance.currentNode).toThrowError();
+    });
+
+    test(`mutations should allow transitions as side effects`, async () => {
+        const graphInstance = await compiledGraph.createInstance({ failAsserts: true });
+        const failedToGoToIsland = await graphInstance.MagicIsland();
+        expect(failedToGoToIsland.type).toBe('unreachable');
+        const bedroom = await graphInstance.Bedroom();
+        assert(bedroom.type === 'successful');
+        await bedroom.mutations.openCupboard();
+        expect(graphInstance.currentNode.name).toBe('MagicIsland');
     });
 
 });
