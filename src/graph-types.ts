@@ -14,7 +14,12 @@ export type TransitionResult<ThisGraph extends Graph<ThisGraph>> =
 
 export type Mutation<ThisGraph extends Graph<ThisGraph>> =
     { type: 'transitioned', to: keyof ThisGraph['nodes'] }
-    | { type: 'update_state', newState: InferGraphState<ThisGraph> }
+    | { type: 'update_state', nextState: InferGraphState<ThisGraph> }
+    | { type: 'graph_faulted', message?: string, data?: any }
+    ;
+
+export type ExitMutation<ThisGraph extends Graph<ThisGraph>> =
+    | { type: 'update_state', nextState: InferGraphState<ThisGraph> }
     | { type: 'graph_faulted', message?: string, data?: any }
     ;
 
@@ -45,7 +50,7 @@ type UnionToIntersection<U> =
 export type Maybe<T> = T | null;
 
 export type Edge<ThisGraph extends Graph<ThisGraph>> =
-    (ctx: EdgeContext<ThisGraph>, arg: any) => TransitionResult<ThisGraph> | Promise<TransitionResult<ThisGraph>>;
+    (ctx: EdgeContext<ThisGraph>, arg: any) => Promise<TransitionResult<ThisGraph>>;
 
 type InferGraphState<G extends Graph<any>> =
     G['initializer'] extends (arg: any) => Promise<{ currentState: infer State }>
@@ -66,8 +71,8 @@ type NodeEdges<
     : (("Edges connecting to inexistent nodes detected: " | Exclude<keyof (Node['edges']), keyof (ThisGraph['nodes'])>));
 
 type Node<ThisGraph extends Graph<ThisGraph>, Self extends { edges?: any, mapAdjacentTemplatedNodeArgs?: any }, Name extends keyof ThisGraph['nodes']> = {
-    onEnter?: (ctx: MutationContext<ThisGraph>) => Promise<Array<Mutation<ThisGraph>>>,
-    onExit?: (ctx: MutationContext<ThisGraph>) => Promise<Array<Mutation<ThisGraph> & { type: Omit<Mutation<ThisGraph>['type'], 'transitioned'> }>>,
+    onEnter?: (ctx: MutationContext<ThisGraph>) => Promise<Mutation<ThisGraph>[]>,
+    onExit?: (ctx: MutationContext<ThisGraph>) => Promise<ExitMutation<ThisGraph>[]>,
     assertions?: ((ctx: AssertionContext<ThisGraph>) => (any | Promise<any>))[],
     fields?: {
         [fieldName: string]: (ctx: FieldContext<ThisGraph>, fieldArg: any) => any
@@ -76,7 +81,7 @@ type Node<ThisGraph extends Graph<ThisGraph>, Self extends { edges?: any, mapAdj
         [key: string]: (ctx: MutationContext<ThisGraph>, mutationArg: any) => Promise<MutationResult<ThisGraph>>
     },
     edges?: NodeEdges<ThisGraph, Self>
-} & (GetNodeArgs<ThisGraph, Name> extends never ? {} : { mapAdjacentTemplatedNodeArgs: AdjacentTemplatedNodeArgMapping<ThisGraph, Name, Self> });
+} & (GetNodeArgs<ThisGraph, Name> extends never ? {} : { mapAdjacentTemplatedNodeArgs?: AdjacentTemplatedNodeArgMapping<ThisGraph, Name, Self> });
 
 type GetAdjacentNodeNames<ThisGraph extends Graph<ThisGraph>, TargetNodeName extends keyof ThisGraph['nodes']> = {
     [NodeName in keyof ThisGraph['nodes']]: ThisGraph['nodes'][NodeName] extends { edges: { [K in TargetNodeName]: any } } ? NodeName : never

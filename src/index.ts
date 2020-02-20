@@ -6,6 +6,12 @@ export function graph<G extends Graph<G>>(graph: G): G & { __typechecked__: void
     return graph as G & { __typechecked__: void };
 }
 
+export function assert(x: any): asserts x {
+    if (!x) {
+        throw new Error('Expected value to be truthy. Internal error');
+    }
+}
+
 type InferInitializer<G extends Graph<G>, _ extends GraphAlgorithm<G>> =
     G['initializer'] extends () => any
     ? () => Promise<CompiledGraphInstance<G>>
@@ -80,6 +86,16 @@ type NavigableEdges<G extends Graph<G>> = {
     [N in keyof G['nodes']]: { [E in keyof G['nodes'][N]['edges']]: NavigableEdge }
 };
 
+export function hasNodeArg<G extends Graph<G>>(nodeName: keyof G['nodes'], graph: G) {
+    for (const otherNodeName in graph.nodes) {
+        const otherNode = graph.nodes[otherNodeName];
+        if ((otherNode.edges?.[nodeName as any as keyof G['nodes'][any]['edges']] as any)?.length >= 2) {
+            return true;
+        }
+    }
+    return false;
+}
+
 class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInstanceProps<G> {
     currentNodeName: keyof G['nodes'];
 
@@ -90,7 +106,6 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
     graph: G;
     episode: number;
     currentEpisode: Promise<any>;
-
     fieldProxy = {
         get: (fields: G['nodes'][any]['fields'], prop: string) => {
             if (fields && prop in fields) {
@@ -151,16 +166,6 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
         }, currentNodeHandler) as CompiledGraphInstanceProps<G>['currentNode'];
     }
 
-    hasNodeArg(nodeName: keyof G['nodes']) {
-        const node = this.graph.nodes[nodeName];
-        for (const otherNodeName in this.graph.nodes) {
-            const otherNode = this.graph.nodes[otherNodeName];
-            if ((otherNode.edges?.[nodeName as any as keyof G['nodes'][any]['edges']] as any)?.length > 1) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     getNavigableEdges(targetNodeName: keyof G['nodes'], arg: any) {
         const edges = {} as NavigableEdges<G>;
@@ -212,14 +217,15 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
                 // Need to get all adjacent edges to edge key, THESE edges are now navigable, not the edge itself
                 for (const nodeName in this.graph.nodes) {
                     const edgeKeyAsEdge = (edgeKey as keyof G['nodes'][any]['edges']);
-                    if (this.graph.nodes[nodeName].edges?.[edgeKeyAsEdge]) {
+                    if (this.graph.nodes[nodeName].edges![edgeKeyAsEdge]) {
                         edges[nodeName][edgeKeyAsEdge] = { navigable: true, arg: mappedArg };
                     }
                 }
 
                 // Add to queue if node hasn't been visited
                 if (!visited.has(edgeKey)) {
-                    queue.push({ name: edgeKey, node: this.graph['nodes'][edgeKey] as { mapAdjacentTemplatedNodeArgs?: { [K in keyof G['nodes']]?: (arg: any) => any } }, arg: mappedArg })
+                    const node = this.graph['nodes'][edgeKey] as { mapAdjacentTemplatedNodeArgs?: { [K in keyof G['nodes']]?: (arg: any) => any } };
+                    queue.push({ name: edgeKey, node, arg: mappedArg });
                 }
             }
         }
@@ -238,10 +244,8 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
                     this.currentNodeName = mutation.to;
                     break;
                 case 'update_state':
-                    this.state = mutation.newState;
+                    this.state = mutation.nextState;
                     break;
-                default:
-                    throwIfNotNever(mutation);
             }
         }
     }
@@ -311,12 +315,12 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
 
             if (this.faulted) {
                 // Another episode may have triggered a fault in the graph
-                resolve({ type: 'faulted' });
+                resolve({ type: 'graph_faulted' });
                 return;
             }
 
             // If has no node arg, can shortcut as already in correct place
-            if (targetNode === this.currentNodeName && !this.hasNodeArg(targetNode)) {
+            if (targetNode === this.currentNodeName && !hasNodeArg(targetNode, this.graph)) {
                 resolve(this.createSuccessNodeProxy(targetNode, episode));
                 return;
             }
@@ -385,10 +389,12 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
                             break navigationLoop;
                         case 'transition_failed':
                             // re-enter current node
+                            if (!transitionResult.canRetryEdge) {
+                                // Can't retry, so will need to add the edge to the black list.
+                                edges[this.currentNodeName][nextEdge].navigable = false;
+                            }
                             await this.onEnter(this.currentNodeName);
                             break;
-                        default:
-                            throwIfNotNever(transitionResult);
                     }
                     // Then tell algorithm about it
                     this.algorithmInstance.postEdgeTransitionAttempt({ currentNode: this.currentNodeName, previousNode: previousNodeName, targetNode, transitionResult, edges });
@@ -400,38 +406,16 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
                     }
 
                     // Finally make a decision about what to do next
-                    switch (transitionResult.type) {
-                        case 'transitioned': {
-                            if (nextEdge === targetNode) {
-                                // We got to the correct node. Need to wrap the node in a proxy to ensure that if we navigate away from the node that it 
-                                // throws an appropriate error.
-                                result = this.createSuccessNodeProxy(targetNode, episode);
-                                break navigationLoop;
-                            } else {
-                                ; // Continue with loop
-                            }
-                            break;
-                        }
-                        case 'unexpectedly_transitioned': {
-                            // Something strange happenened, and now we're in another state
-                            break;
-                        }
-                        case 'transition_failed': {
-                            // Transition didn't work
-                            if (!transitionResult.canRetryEdge) {
-                                // Can't retry, so will need to add the edge to the black list.
-                                edges[this.currentNodeName][nextEdge].navigable = false;
-                            } else {
-                                ; // if we're allowed to try again, continue loop as normal
-                            }
-                            break;
-                        }
-                        default:
-                            throwIfNotNever(transitionResult);
+                    if (transitionResult.type === 'transitioned' && nextEdge === targetNode) {
+                        // We got to the correct node. Need to wrap the node in a proxy to ensure that if we navigate away from the node that it 
+                        // throws an appropriate error.
+                        result = this.createSuccessNodeProxy(targetNode, episode);
+                        break navigationLoop;
                     }
                 } catch (e) {
-                    result = { type: 'error', data: e };
-                    break;
+                    result = { type: 'graph_faulted', data: e };
+                    this.faulted = true;
+                    break navigationLoop;
                 }
                 // END ATOMIC SECTION
             }
@@ -445,21 +429,12 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
             resolve(result);
         });
 
-
         this.currentEpisode = this.currentEpisode.then(() => f());
         return this.currentEpisode;
     }
 }
 
-function assert(x: any): asserts x {
-    if (!x) {
-        throw new Error('Expected value to be truthy. Internal error');
-    }
-}
 
-function throwIfNotNever(x: never): never {
-    throw new Error(`Expected ${x} to be never`);
-}
 
 function guidGenerator(): GraphInstanceIdentifier {
     var S4 = function () {
@@ -477,12 +452,9 @@ class CompiledGraphImpl<G extends Graph<G>, A extends GraphAlgorithm<G>> impleme
             get: function (target: CompiledGraphInstanceImpl<G>, prop: string | number | symbol) {
                 if (nodeNames.includes(prop as keyof G['nodes'])) {
                     return (args: any) => target.goto(prop as keyof G['nodes'], args);
-                } else if (target) {
-                    return (target as any)[prop];
                 } else {
-                    return undefined;
+                    return (target as any)[prop];
                 }
-
             }
         };
 

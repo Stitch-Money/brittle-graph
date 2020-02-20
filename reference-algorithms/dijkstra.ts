@@ -22,7 +22,7 @@ class DijkstraInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> 
 
     doRoute(edges: NavigableEdges<G>, startNode: keyof G['nodes'], targetNode: keyof G['nodes']) {
         this.path.clear();
-        const queue = new PriorityQueue<{ cost: number, node: keyof G['nodes'] }>([], function (a, b) {
+        const queue = new PriorityQueue<{ cost: number, node: keyof G['nodes'] }>([], function (a: { cost: number }, b: { cost: number }) {
             return a.cost - b.cost;
         });
 

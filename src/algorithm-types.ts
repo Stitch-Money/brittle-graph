@@ -18,15 +18,11 @@ export type GraphNavigationResult<G extends Graph<G>, SuccessType> =
     | {
         type: 'cancelled'
     }
-    /** An exception was thrown during a transition. */
-    | {
-        type: 'error',
-        message?: string,
-        data?: any
-    }
     /** Graph has entered the faulted state and cannot recover. */
     | {
         type: 'graph_faulted',
+        message?: string,
+        data?: any
     }
     /** Successfully navigated to this node some time in the past, 
      *  however a subsequent navigation request has been made, 
