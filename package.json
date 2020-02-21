@@ -13,8 +13,10 @@
     "node-dev": "ts-node-dev --respawn ./src/test-values.ts",
     "install-peers": "npm-install-peers"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
   "author": "Nick Cuthbert",
-  "license": "MIT",
   "dependencies": {
     "denque": "^1.4.1",
     "tinyqueue": "^2.0.3"
