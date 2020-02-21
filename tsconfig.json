@@ -14,7 +14,7 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
-    "target": "ES2017"
+    "target": "es6"
   },
   "include": [
     "src",
