@@ -385,8 +385,7 @@ class CompiledGraphInstanceImpl<G extends Graph<G>> implements CompiledGraphInst
                             break;
                         case 'graph_faulted':
                             this.faulted = true;
-                            result = { type: 'graph_faulted' };
-                            break navigationLoop;
+                            break;
                         case 'transition_failed':
                             // re-enter current node
                             if (!transitionResult.canRetryEdge) {

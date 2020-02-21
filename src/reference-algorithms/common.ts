@@ -1,5 +1,5 @@
-import { NavigableEdges } from "../src/algorithm-types";
-import { Graph } from "../src/graph-types";
+import { NavigableEdges } from "../algorithm-types";
+import { Graph } from "../graph-types";
 import Queue from 'denque';
 
 export function* getReachableEdges<G extends Graph<G>>(currentNode: keyof G['nodes'], edges: NavigableEdges<G>): Iterable<(keyof G['nodes'])> {
@@ -22,7 +22,5 @@ export function followBacklinks<G extends Graph<G>>(path: Queue<keyof G["nodes"]
             }
             currentNode = backlink;
         }
-    } else {
-        ;  // no path
     }
 }

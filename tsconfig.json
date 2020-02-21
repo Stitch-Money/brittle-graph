@@ -6,7 +6,7 @@
       "es2017",
       "es7",
       "es6",
-      "dom"
+      "DOM"
     ],
     "noImplicitAny": true,
     "strict": true,
@@ -14,13 +14,11 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
-    "target": "es6"
+    "target": "ES2017"
   },
   "include": [
     "src",
-    "examples",
     "__tests__",
-    "reference-algorithms"
   ],
   "exclude": [
     "node_modules",

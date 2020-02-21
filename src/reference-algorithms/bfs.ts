@@ -1,14 +1,7 @@
-import { GraphAlgorithm, GraphAlgorithmInstance, NavigableEdges } from "../src/algorithm-types";
-import { Graph } from "../src/graph-types";
+import { GraphAlgorithm, GraphAlgorithmInstance, NavigableEdges } from "../algorithm-types";
+import { Graph } from "../graph-types";
 import Queue from 'denque';
 import { getReachableEdges, followBacklinks } from "./common";
-
-
-function assert(x: any): asserts x {
-    if (!x) {
-        throw new Error('Expected value to be truthy. Internal error');
-    }
-}
 
 
 class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
@@ -44,13 +37,13 @@ class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
         return (this.path.peekFront() ?? null) as (keyof G["nodes"][CurrentNode]["edges"] | null);
     }
 
-    postEdgeTransitionAttempt<CurrentNode extends keyof G["nodes"], PrevNode extends keyof G["nodes"], TargetNode extends keyof G["nodes"]>(navArgs: { currentNode: CurrentNode; previousNode: PrevNode; targetNode: TargetNode; transitionResult: import("../src/graph-types").TransitionResult<G>; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; }): void {
+    postEdgeTransitionAttempt<CurrentNode extends keyof G["nodes"], PrevNode extends keyof G["nodes"], TargetNode extends keyof G["nodes"]>(navArgs: { currentNode: CurrentNode; previousNode: PrevNode; targetNode: TargetNode; transitionResult: import("../graph-types").TransitionResult<G>; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; }): void {
         switch (navArgs.transitionResult.type) {
             case 'transitioned':
                 this.path.shift();
                 break;
             case 'graph_faulted':
-                this.path.clear()
+                this.path.clear();
                 break;
             case 'unexpectedly_transitioned':
                 this.doRoute(navArgs.edges, navArgs.currentNode, navArgs.targetNode);
@@ -62,7 +55,7 @@ class BfsInstance<G extends Graph<G>> implements GraphAlgorithmInstance<G> {
         }
     }
 
-    endNavigation<TargetNode extends keyof G["nodes"], CurrentNode extends keyof G["nodes"]>(_args: { result: import("../src/algorithm-types").GraphNavigationResult<G, unknown>; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; targetNode: TargetNode; currentNode?: CurrentNode | undefined; }): void {
+    endNavigation<TargetNode extends keyof G["nodes"], CurrentNode extends keyof G["nodes"]>(_args: { result: import("../algorithm-types").GraphNavigationResult<G, unknown>; edges: { [Node in keyof G["nodes"]]: { [E in keyof G["nodes"][Node]["edges"]]: { navigable: boolean; }; }; }; targetNode: TargetNode; currentNode?: CurrentNode | undefined; }): void {
         this.path.clear();
     }
 }

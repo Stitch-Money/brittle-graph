@@ -16,9 +16,7 @@
   "author": "Nick Cuthbert",
   "license": "MIT",
   "dependencies": {
-    "denque": "^1.4.1"
-  },
-  "peerDependencies": {
+    "denque": "^1.4.1",
     "tinyqueue": "^2.0.3"
   },
   "devDependencies": {

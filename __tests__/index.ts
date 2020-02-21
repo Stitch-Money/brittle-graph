@@ -1,5 +1,5 @@
 import { graph, compileGraph, assert, hasNodeArg } from "../src/index";
-import { Bfs } from "../reference-algorithms/bfs";
+import { Bfs } from "../src/reference-algorithms/bfs";
 
 
 
