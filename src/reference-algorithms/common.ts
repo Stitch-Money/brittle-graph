@@ -11,7 +11,7 @@ export function* getReachableEdges<G extends Graph<G>>(currentNode: keyof G['nod
     }
 }
 
-export function followBacklinks<G extends Graph<G>>(path: Queue<keyof G["nodes"]>, backlinks: { [_ in (keyof G['nodes'])]?: (keyof G['nodes']) } = {}, targetNode: keyof G['nodes'], startNode: keyof G['nodes']) {
+export function followBacklinks<G extends Graph<G>>(path: Queue<keyof G["nodes"]>, backlinks: { [_ in (keyof G['nodes'])]?: (keyof G['nodes']) }, targetNode: keyof G['nodes'], startNode: keyof G['nodes']) {
     if (backlinks[targetNode]) {
         let currentNode = targetNode;
         for (; ;) {
