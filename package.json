@@ -1,5 +1,5 @@
 {
-  "name": "brittle-graph",
+  "name": "@stitch-money/brittle-graph",
   "version": "0.1.0",
   "description": "A library for efficiently traversing graphs with brittle, failure prone edges",
   "main": "dist/src/index.js",
