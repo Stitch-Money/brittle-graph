@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "tsc": "tsc",
     "test": "jest --coverage",
-    "watch": "jest --watch --coverage"
+    "watch": "jest --watch --coverage",
+    "prepack": "tsc"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"
