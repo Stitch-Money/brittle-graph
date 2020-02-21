@@ -1,4 +1,5 @@
 # Brittle Graph
+![Node.js CI](https://github.com/Stitch-Money/brittle-graph/workflows/Node.js%20CI/badge.svg?branch=master)
 
 ## What is Brittle Graph?
 
